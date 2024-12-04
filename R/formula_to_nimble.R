@@ -19,9 +19,9 @@
 #'
 #' @examples
 #' Takes a formula and gives nimble objects.
-formula_to_nimble <- function(formula, data, model=NULL, family=list(), delay_link=list(),
-                                  D=NULL, model_window=NULL, aggregate=FALSE, nested=FALSE, nested.censored=NULL,
-                                  priors=list(), nchains=1) {
+formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, family=list(), delay_link=list(),
+                                                  D=NULL, model_window=NULL, aggregate=FALSE, nested=FALSE, nested.censored=NULL,
+                                                  priors=list(), nchains=1) {
 
   ############  Define response variables
   # Parse the formula$totals components
@@ -259,7 +259,7 @@ formula_to_nimble <- function(formula, data, model=NULL, family=list(), delay_li
       # Extract the spline basis matrix.
       # Calculate using mgcv::gam incase there is missing values:
       gam_output <- mgcv::gam(stats::as.formula(paste(response,"~",pred)), data = data_spline, fit=TRUE)
-      blank_gam_x<-mgcv::predict(gam_output, newdata=data_spline, type="lpmatrix")
+      blank_gam_x<-stats::predict(gam_output, newdata=data_spline, type="lpmatrix")
       # spline_basis <- jagam_output$jags.data$X[,2:(dim(jagam_output$jags.data$S1)[1]+1)]
       spline_basis <- blank_gam_x[,2:(dim(jagam_output$jags.data$S1)[1]+1)]
       nimble_constants[[spline_term_name]]<-spline_basis
@@ -750,7 +750,7 @@ formula_to_nimble <- function(formula, data, model=NULL, family=list(), delay_li
         # Extract the spline basis matrix.
         # Calculate using mgcv::gam incase there is missing values:
         gam_output <- mgcv::gam(stats::as.formula(paste(response_partial,"~",pred_p)), data = data_spline_delay, fit=TRUE)
-        blank_gam_x<-mgcv::predict(gam_output, newdata=data_spline_delay, type="lpmatrix")
+        blank_gam_x<-stats::predict(gam_output, newdata=data_spline_delay, type="lpmatrix")
         spline_basis <- blank_gam_x[,2:(dim(jagam_output$jags.data$S1)[1]+1)]
         #spline_basis <- jagam_output$jags.data$X[,2:(dim(jagam_output$jags.data$S1)[1]+1)]
         nimble_constants[[spline_term_name]]<-spline_basis
@@ -788,7 +788,7 @@ formula_to_nimble <- function(formula, data, model=NULL, family=list(), delay_li
         # Extract the spline basis matrix.
         # Calculate using mgcv::gam incase there is missing values:
         gam_output <- mgcv::gam(stats::as.formula(paste(response_partial,"~",pred_p)), data = data_spline_delay, fit=TRUE)
-        blank_gam_x<-mgcv::predict(gam_output, newdata=data_spline_delay, type="lpmatrix")
+        blank_gam_x<-stats::predict(gam_output, newdata=data_spline_delay, type="lpmatrix")
         spline_basis <- blank_gam_x[,2:(dim(jagam_output$jags.data$S1)[1]+1)]
         #spline_basis <- jagam_output$jags.data$X[,2:(dim(jagam_output$jags.data$S1)[1]+1)]
         nimble_constants[[spline_term_name]]<-spline_basis
@@ -1010,50 +1010,27 @@ formula_to_nimble <- function(formula, data, model=NULL, family=list(), delay_li
     predictors_nested <- stringr::str_trim(predictors_nested)
 
     # Add the likelihood model
-    if (is.null(family$nested)){
-      nimble_monitors[[paste0(response_nested, "_corrected")]] <- paste0(response_nested, "_corrected")
-      nimble_monitors[[paste0("chi")]] <- paste0("chi")
-      nimble_monitors[[paste0("eta")]] <- paste0("eta")
-      for(c in 1:nchains){
-        if(aggregate){
-          # EDIT FOR multiple virus: nimble_initial_values[[c]][[paste0("chi")]] <- matrix(abs(stats::rnorm(nimble_constants$A, 0, 5)), ncol=nimble_constants$A)
-          nimble_initial_values[[c]][[paste0("chi")]] <- abs(stats::rnorm(nimble_constants$A, 0, 5))
-        }else{
-          nimble_initial_values[[c]][[paste0("chi")]] <- abs(stats::rnorm(1, 0, 5))
-        }
+    nimble_monitors[[paste0(response_nested, "_corrected")]] <- paste0(response_nested, "_corrected")
+    nimble_monitors[[paste0("chi")]] <- paste0("chi")
+    nimble_monitors[[paste0("eta")]] <- paste0("eta")
+    for(c in 1:nchains){
+      if(aggregate){
+        # EDIT FOR multiple virus: nimble_initial_values[[c]][[paste0("chi")]] <- matrix(abs(stats::rnorm(nimble_constants$A, 0, 5)), ncol=nimble_constants$A)
+        nimble_initial_values[[c]][[paste0("chi")]] <- abs(stats::rnorm(nimble_constants$A, 0, 5))
+      }else{
+        nimble_initial_values[[c]][[paste0("chi")]] <- abs(stats::rnorm(1, 0, 5))
       }
-      # Loop for time
-      nimble_code <- paste0(nimble_code, aggregate_space, "for(i in 1:W) {\n")
-      nimble_code <- paste0(nimble_code, aggregate_space, "  ", response_nested, "_corrected[i", aggregate_index, "] ~ ")
-      nimble_code <- paste0(nimble_code, "dbetabin(eta[i", aggregate_index, "], chi", aggregate_single, ", ", response, "[i", aggregate_index, "])\n")
-      # End time loop
-      nimble_code <- paste0(nimble_code, aggregate_space,  "}\n")
-
-
-
-    }else if (tolower(family$nested)=="gdm"){
-      nimble_monitors[[paste0(response_nested, "_corrected")]] <- paste0(response_nested, "_corrected")
-      nimble_monitors[[paste0("chi")]] <- paste0("chi")
-      nimble_monitors[[paste0("eta")]] <- paste0("eta")
-      for(c in 1:nchains){
-        if(aggregate){
-          nimble_initial_values[[c]][[paste0("chi")]] <- matrix(abs(stats::rnorm(nimble_constants$A, 0, 5)), ncol=nimble_constants$A)
-        }else{
-          nimble_initial_values[[c]][[paste0("chi")]] <- abs(stats::rnorm(1, 0, 5))
-        }
-      }
-      # Loop for time
-      nimble_code <- paste0(nimble_code, aggregate_space, "for(i in 1:W) {\n")
-      nimble_code <- paste0(nimble_code, aggregate_space, "  ", response_nested, "_corrected[i", aggregate_index, "] ~ ")
-      nimble_code <- paste0(nimble_code, "dbetabin(eta[i", aggregate_index, "], chi", aggregate_single, ", ", response, "[i", aggregate_index, "])\n")
-      # End time loop
-      nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-
-
-
-    }else{
-      print(paste0("Argument for family$nested is being changed to 'gdm', which is the only appropriate choice for the nested model."))
     }
+    # Loop for time
+    nimble_code <- paste0(nimble_code, aggregate_space, "for(i in 1:W) {\n")
+    nimble_code <- paste0(nimble_code, aggregate_space, "  ", response_nested, "_corrected[i", aggregate_index, "] ~ ")
+    nimble_code <- paste0(nimble_code, "dbetabin(eta[i", aggregate_index, "], chi", aggregate_single, ", ", response, "[i", aggregate_index, "])\n")
+    # End time loop
+    nimble_code <- paste0(nimble_code, aggregate_space,  "}\n")
+
+
+
+
 
 
 
@@ -1117,7 +1094,7 @@ formula_to_nimble <- function(formula, data, model=NULL, family=list(), delay_li
         # Extract the spline basis matrix.
         # spline_basis <- jagam_output$jags.data$X[,2:(dim(jagam_output$jags.data$S1)[1]+1)]
         gam_output <- mgcv::gam(stats::as.formula(paste(response_nested,"~",pred_p)), data = data_spline_nested, fit=TRUE)
-        blank_gam_x<-mgcv::predict(gam_output, newdata=data_spline_nested, type="lpmatrix")
+        blank_gam_x<-stats::predict(gam_output, newdata=data_spline_nested, type="lpmatrix")
         spline_basis <- blank_gam_x[,2:(dim(jagam_output$jags.data$S1)[1]+1)]
 
         nimble_constants[[spline_term_name]]<-spline_basis
@@ -1278,548 +1255,549 @@ formula_to_nimble <- function(formula, data, model=NULL, family=list(), delay_li
 
 
     }
+  }
 
 
-    ############ Priors:
-    ### Set prior distributions
-    # Set defaults:
-    priors_default<-list(
-      # default priors for totals
-      totals.intercept="dnorm(0, 10)",
-      totals.dispersion="dgamma(2,0.02)",
-      totals.spline="T(dnorm(0,1),0,)",
-      totals.rw2="T(dnorm(0,1),0,)",
-      totals.rw1="T(dnorm(0,1),0,)",
-      totals.iid="T(dnorm(0,1),0,)",
-      totals.re="dnorm(0, 10)",
+  ############ Priors:
+  ### Set prior distributions
+  # Set defaults:
+  priors_default<-list(
+    # default priors for totals
+    totals.intercept="dnorm(0, 10)",
+    totals.dispersion="dgamma(2,0.02)",
+    totals.spline="T(dnorm(0,1),0,)",
+    totals.rw2="T(dnorm(0,1),0,)",
+    totals.rw1="T(dnorm(0,1),0,)",
+    totals.iid="T(dnorm(0,1),0,)",
+    totals.re="dnorm(0, 10)",
 
-      # default priors for partial counts
-      delay.intercept="dnorm(0, 10)",
-      delay.dispersion="dgamma(2,0.02) ",
-      delay.spline="T(dnorm(0,1),0,)",
-      delay.rw2="T(dnorm(0,1),0,)",
-      delay.rw1="T(dnorm(0,1),0,)",
-      delay.iid="T(dnorm(0,1),0,)",
-      delay.re="dnorm(0, 10)",
+    # default priors for partial counts
+    delay.intercept="dnorm(0, 10)",
+    delay.dispersion="dgamma(2,0.02) ",
+    delay.spline="T(dnorm(0,1),0,)",
+    delay.rw2="T(dnorm(0,1),0,)",
+    delay.rw1="T(dnorm(0,1),0,)",
+    delay.iid="T(dnorm(0,1),0,)",
+    delay.re="dnorm(0, 10)",
 
-      # default priors for nested counts
-      nested.intercept="dnorm(0, 10)",
-      nested.dispersion="dgamma(2,0.02)",
-      nested.scale="dnorm(0,sd=5)",
-      nested.spline="T(dnorm(0,1),0,)",
-      nested.rw2="T(dnorm(0,1),0,)",
-      nested.rw1="T(dnorm(0,1),0,)",
-      nested.iid="T(dnorm(0,1),0,)",
-      nested.re="dnorm(0, 10)",
-      censored.dispersion="dgamma(2,0.02)",
-      censored.slope="dgamma(shape=10,rate=200)"
-    )
-    nimble_priors<-priors_default
-    # Replace any defaults with distributions set in priors argument:
-    nimble_priors[names(priors)]<-priors
+    # default priors for nested counts
+    nested.intercept="dnorm(0, 10)",
+    nested.dispersion="dgamma(2,0.02)",
+    nested.scale="dnorm(0,sd=5)",
+    nested.spline="T(dnorm(0,1),0,)",
+    nested.rw2="T(dnorm(0,1),0,)",
+    nested.rw1="T(dnorm(0,1),0,)",
+    nested.iid="T(dnorm(0,1),0,)",
+    nested.re="dnorm(0, 10)",
+    censored.dispersion="dgamma(2,0.02)",
+    censored.slope="dgamma(shape=10,rate=200)"
+  )
+  nimble_priors<-priors_default
+  # Replace any defaults with distributions set in priors argument:
+  nimble_priors[names(priors)]<-priors
 
 
 
-    ### Priors for totals model
+  ### Priors for totals model
 
-    # Add prior distributions for the coefficients
-    nimble_code <- paste0(nimble_code, aggregate_space, "# Priors total\n")
-    nimble_code <- paste0(nimble_code, aggregate_space, "beta_0", aggregate_single, " ~ ",nimble_priors$totals.intercept,"\n")
+  # Add prior distributions for the coefficients
+  nimble_code <- paste0(nimble_code, aggregate_space, "# Priors total\n")
+  nimble_code <- paste0(nimble_code, aggregate_space, "beta_0", aggregate_single, " ~ ",nimble_priors$totals.intercept,"\n")
+  for(c in 1:nchains){
+    if(aggregate){
+      nimble_initial_values[[c]][["beta_0"]]<- stats::rnorm(nimble_constants$A,0,0.1)
+    }else{
+      nimble_initial_values[[c]][["beta_0"]]<- stats::rnorm(1,0,0.1)
+    }
+  }
+  nimble_monitors[[paste0("beta_0")]]<-paste0("beta_0")
+
+  # Add priors for regular predictors
+  for (pred in predictors) {
+    if (!stringr::str_detect(pred, "s\\(") && pred != "1" && !stringr::str_detect(pred, "f\\(")) {
+      nimble_code <- paste0(nimble_code, aggregate_space, "beta_", pred, aggregate_single, " ~ ",nimble_priors$totals.re,"\n")
+
+    }
+  }
+
+  if(!is.null(spline_terms)|!is.null(spline_terms_delay)){
+    nimble_constants$zeros<-c(0)
+  }
+  # Add priors for spline coefficients
+  if (!is.null(spline_terms)) {
+    nimble_code <- paste0(nimble_code, aggregate_space, "# Priors for totals spline \n")
+    for(j in 1:length(spline_terms)){
+      # nimble_constants[[paste("S_beta_",pred_name,i,sep='')]]<-jagam_output$jags.data$S1[,(1+(i-1)*dim(jagam_output$jags.data$S1)[1]):(i*dim(jagam_output$jags.data$S1)[1])]
+      nimble_code <- paste0(nimble_code, aggregate_space, "beta_spline_",spline_terms[j],"[1:N", aggregate_index, "] <- ","f_spline_",spline_terms[j], "[1:N, 1:K_beta_",pred_name,"]%*%kappa_beta_", pred_name, "[1:K_beta_",pred_name, aggregate_index, "] \n")
+      nimble_code <- paste0(nimble_code, aggregate_space, "kappa_beta_",spline_terms[j],"[", "1:K_beta_",spline_terms[j], aggregate_index, "] ~ dmnorm(zeros[", "1:K_beta_",spline_terms[j],"],","omega_beta_",spline_terms[j],"[", "1:K_beta_",spline_terms[j], ", 1:K_beta_",spline_terms[j], aggregate_index, "])\n",sep='')
+      nimble_constants$zeros<-rep(0,max(c(length(nimble_constants$zeros), nimble_constants[[paste("K_beta_",spline_terms[j],sep='')]])))
+      # Penalty matrix for MVN distribution.
+      nimble_code <- paste0(nimble_code, aggregate_space, "omega_beta_",spline_terms[j],"[", "1:K_beta_",spline_terms[j], ", 1:K_beta_",spline_terms[j], aggregate_index, "] <-",sep='')
+      S_n<-(dim(jagam_output_totals[[j]]$jags.data$S1)[2]/dim(jagam_output_totals[[j]]$jags.data$S1)[1])
+      for(i in 1:S_n){
+        nimble_code <- paste0(nimble_code,"S_beta_",spline_terms[j],"[", "1:K_beta_",spline_terms[j], ", (1 + ",(i-1),"*K_beta_",spline_terms[j],"):(",i,"*K_beta_",spline_terms[j], ")]/sigma_beta_",spline_terms[j],i,aggregate_single,"^2 + ",sep='')
+        if(i==S_n){
+          nimble_code <- substr(nimble_code, 1, nchar(nimble_code) - 3)
+          nimble_code <- paste0(nimble_code," \n",sep='')
+        }
+      }
+      for(i in 1:S_n){
+        nimble_code <- paste0(nimble_code, aggregate_space, "sigma_beta_", spline_terms[j],i,aggregate_single," ~ ",nimble_priors$totals.spline," \n")
+        for(c in 1:nchains){
+          if(aggregate){
+            nimble_initial_values[[c]][[paste("sigma_beta_", spline_terms[j],i,sep='')]]<- stats::runif(nimble_constants$A, 0, 1)
+          }else{
+            nimble_initial_values[[c]][[paste("sigma_beta_", spline_terms[j],i,sep='')]]<- stats::runif(1, 0, 1)
+          }
+        }
+        nimble_monitors[[paste("sigma_beta_", spline_terms[j],i,sep='')]]<-paste("sigma_beta_", spline_terms[j],i,sep='')
+
+      }
+    }
+  }
+
+  # Add priors for random effects and structured terms
+  if (length(random_effects) > 0) {
+    for (random_name in names(random_effects)) {
+      nimble_code <- paste0(nimble_code, aggregate_space, "for(i in 1:N){\n")
+      nimble_code <- paste0(nimble_code, aggregate_space, "  ", "u_", random_name, "[i",aggregate_index,"] ~ dnorm(0, tau_", random_name, aggregate_single, ")\n")
+      nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
+      nimble_code <- paste0(nimble_code, aggregate_space, "tau_", random_name, aggregate_single, " ~  ",nimble_priors$totals.iid, "\n")
+
+    }
+  }
+
+  if (length(structured_terms) > 0) {
+    for (term_name in names(structured_terms)) {
+      if (structured_terms[[term_name]] == "rw1") {
+        nimble_code <- paste0(nimble_code, aggregate_space, "u_rw1_", term_name, "[1", aggregate_index, "] ~ dnorm(0",", ", "tau_rw1_", term_name, aggregate_single, ")\n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "for(j_", term_name, " in 2:N){\n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "  ", "u_rw1_", term_name, "[j_", term_name, aggregate_index, "] ~ dnorm(u_rw1_", term_name,"[j_", term_name, "-1", aggregate_index,"]",", ", "tau_rw1_", term_name, aggregate_single, ")\n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "tau_rw1_", term_name, aggregate_single, " ~ ", nimble_priors$totals.rw1, "\n")
+      } else if (structured_terms[[term_name]] == "rw2") {
+        nimble_code <- paste0(nimble_code, aggregate_space, "u_rw2_", term_name, "[1", aggregate_index,"] ~ dnorm(0, tau_rw2_", term_name, aggregate_single, ")\n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "u_rw2_", term_name, "[2", aggregate_index,"] ~ dnorm(u_rw2_", term_name, "[1",aggregate_index,"], ", "tau_rw2_", term_name, aggregate_single, ")\n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "for(j_", term_name, " in 3:N){\n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "    ", "u_rw2_", term_name, "[j_", term_name, aggregate_index , "] ~ dnorm(2*u_rw2_", term_name,"[j_", term_name, "-1", aggregate_index,"] - u_rw2_", term_name, "[j_", term_name, "-2", aggregate_index,"]", ", ", "tau_rw2_", term_name, aggregate_single, ")\n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "tau_rw2_", term_name, aggregate_single, " ~ ", nimble_priors$totals.rw2, "\n")
+        # } else if (structured_terms[[term_name]] == "seasonal") {
+        #   nimble_code <- paste0(nimble_code, "  u_seasonal_", term_name, "[1:N] ~ dPeriodic(tau_seasonal_", term_name, ")\n")
+        #   nimble_code <- paste0(nimble_code, "  tau_seasonal_", term_name, " ~ T(dnorm(0,1),0,)\n")
+      }
+      # else if (structured_terms[[term_name]] == "spatial") { # EDIT allow for spatial effect
+      #   nimble_code <- paste0(nimble_code, aggregate_space, "u_spatial[1:N", aggregate_index,"] ~ dcar_normal(adj[], num[], tau_spatial",aggregate_single,")\n")
+      #   nimble_code <- paste0(nimble_code, aggregate_space, "tau_spatial",aggregate_single," ~ T(dnorm(0,1),0,)\n")
+      # }
+    }
+  }
+
+  # Add priors for family-specific parameters
+  if(!is.null(family$total)){
+    if ((tolower(family$total)=="nb")){
+      nimble_code <- paste0(nimble_code, aggregate_space, "theta", aggregate_single, " ~ ", nimble_priors$totals.dispersion, "\n")
+    }
+  }
+
+  ### Priors for delay model
+
+  # Add prior distributions for the coefficients
+  nimble_code <- paste0(nimble_code, aggregate_space, "# Priors delay\n")
+  if (stringr::str_detect(tolower(delay_link), "survivor")) {
+    nimble_code <- paste0(nimble_code, aggregate_space, "alpha_0[1", aggregate_index,"] ~ ", nimble_priors$delay.intercept, "\n")
+    nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 2:D){\n")
+    nimble_code <- paste0(nimble_code, aggregate_space, "  alpha_0[d", aggregate_index,"] ~ T(dnorm(alpha_0[d-1", aggregate_index,"], sd=10), alpha_0[d-1", aggregate_index,"], )\n")
+    nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
     for(c in 1:nchains){
       if(aggregate){
-        nimble_initial_values[[c]][["beta_0"]]<- stats::rnorm(nimble_constants$A,0,0.1)
+        nimble_initial_values[[c]][["alpha_0"]]<- matrix(sort(stats::rnorm(nimble_constants$D*nimble_constants$A,0,0.1)), ncol=nimble_constants$A, byrow = TRUE)
       }else{
-        nimble_initial_values[[c]][["beta_0"]]<- stats::rnorm(1,0,0.1)
-      }
-    }
-    nimble_monitors[[paste0("beta_0")]]<-paste0("beta_0")
-
-    # Add priors for regular predictors
-    for (pred in predictors) {
-      if (!stringr::str_detect(pred, "s\\(") && pred != "1" && !stringr::str_detect(pred, "f\\(")) {
-        nimble_code <- paste0(nimble_code, aggregate_space, "beta_", pred, aggregate_single, " ~ ",nimble_priors$totals.re,"\n")
-
+        nimble_initial_values[[c]][["alpha_0"]]<- sort(stats::rnorm(nimble_constants$D,0,0.1))
       }
     }
 
-    if(!is.null(spline_terms)|!is.null(spline_terms_delay)){
-      nimble_constants$zeros<-c(0)
+
+  } else if ((tolower(delay_link)=="log")|(tolower(delay_link)=="logit")){ # EDIT - also multinomial?
+    nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:(D+1)){\n")
+    nimble_code <- paste0(nimble_code, aggregate_space, "alpha_0[d", aggregate_index,"] ~ ", nimble_priors$delay.intercept, "\n")
+    nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
+    for(c in 1:nchains){
+      if(aggregate){
+        nimble_initial_values[[c]][["alpha_0"]]<- matrix(sort(stats::rnorm((nimble_constants$D+1)*nimble_constants$A,0,0.1)), ncol=nimble_constants$A, byrow = TRUE)
+      }else{
+        nimble_initial_values[[c]][["alpha_0"]]<- sort(stats::rnorm((nimble_constants$D+1),0,0.1))
+      }
     }
-    # Add priors for spline coefficients
-    if (!is.null(spline_terms)) {
-      nimble_code <- paste0(nimble_code, aggregate_space, "# Priors for totals spline \n")
-      for(j in 1:length(spline_terms)){
-        # nimble_constants[[paste("S_beta_",pred_name,i,sep='')]]<-jagam_output$jags.data$S1[,(1+(i-1)*dim(jagam_output$jags.data$S1)[1]):(i*dim(jagam_output$jags.data$S1)[1])]
-        nimble_code <- paste0(nimble_code, aggregate_space, "beta_spline_",spline_terms[j],"[1:N", aggregate_index, "] <- ","f_spline_",spline_terms[j], "[1:N, 1:K_beta_",pred_name,"]%*%kappa_beta_", pred_name, "[1:K_beta_",pred_name, aggregate_index, "] \n")
-        nimble_code <- paste0(nimble_code, aggregate_space, "kappa_beta_",spline_terms[j],"[", "1:K_beta_",spline_terms[j], aggregate_index, "] ~ dmnorm(zeros[", "1:K_beta_",spline_terms[j],"],","omega_beta_",spline_terms[j],"[", "1:K_beta_",spline_terms[j], ", 1:K_beta_",spline_terms[j], aggregate_index, "])\n",sep='')
-        nimble_constants$zeros<-rep(0,max(c(length(nimble_constants$zeros), nimble_constants[[paste("K_beta_",spline_terms[j],sep='')]])))
+
+
+  }else{
+
+    nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:D){\n")
+    nimble_code <- paste0(nimble_code, aggregate_space, "  alpha_0[d", aggregate_index,"] ~ ", nimble_priors$delay.intercept, "\n")
+    nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
+    for(c in 1:nchains){
+      if(aggregate){
+        nimble_initial_values[[c]][["alpha_0"]]<- matrix(stats::rnorm(nimble_constants$D*nimble_constants$A,0,0.1), ncol=nimble_constants$A)
+      }else{
+        nimble_initial_values[[c]][["alpha_0"]]<- stats::rnorm(nimble_constants$D,0,0.1)
+      }
+    }
+
+  }
+
+
+  nimble_monitors[[paste0("alpha_0")]]<-paste0("alpha_0")
+
+
+  # Add priors for regular predictors_partial
+  for (pred_p in predictors_partial) {
+    if(stringr::str_detect(tolower(delay_link), "survivor")){
+      if (!stringr::str_detect(pred_p, "s\\(") && pred_p != "1" && !stringr::str_detect(pred_p, "f\\(")) {
+        nimble_code <- paste0(nimble_code, aggregate_space, "  ", "alpha_", pred_p, aggregate_single," ~ ", nimble_priors$delay.re, "\n")
+        for(c in 1:nchains){
+          if(aggregate){
+            nimble_initial_values[[c]][[paste0("alpha_", pred_p)]]<- stats::rnorm(nimble_constants$A,0,0.1)
+          }else{
+            nimble_initial_values[[c]][[paste0("alpha_", pred_p)]]<- stats::rnorm(1,0,0.1)
+          }
+        }
+        nimble_monitors[[paste0("alpha_", pred_p)]] <- paste0("alpha_", pred_p)
+
+      }
+    }else{
+      if (!stringr::str_detect(pred_p, "s\\(") && pred_p != "1" && !stringr::str_detect(pred_p, "f\\(")) {
+        if ((tolower(delay_link)=="log"|(tolower(delay_link)=="logit"))){
+          nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:(D+1)) { \n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "  ", "alpha_", pred_p, "[d", aggregate_index, "] ~ ", nimble_priors$delay.re, "\n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "} \n")
+          for(c in 1:nchains){
+            if(aggregate){
+              nimble_initial_values[[c]][[paste0("alpha_", pred_p)]]<- matrix(stats::rnorm(nimble_constants$A*(nimble_constants$D+1),0,0.1), ncol=nimble_constants$A)
+            }else{
+              nimble_initial_values[[c]][[paste0("alpha_", pred_p)]]<- stats::rnorm((nimble_constants$D+1),0,0.1)
+            }
+          }
+          nimble_monitors[[paste0("alpha_", pred_p)]] <- paste0("alpha_", pred_p)
+
+        }else{
+          nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:D) { \n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "  ", "alpha_", pred_p, "[d", aggregate_index, "] ~ ", nimble_priors$delay.re, "\n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "} \n")
+          for(c in 1:nchains){
+            if(aggregate){
+              nimble_initial_values[[c]][[paste0("alpha_", pred_p)]]<- matrix(stats::rnorm(nimble_constants$A*nimble_constants$D,0,0.1), ncol=nimble_constants$A)
+            }else{
+              nimble_initial_values[[c]][[paste0("alpha_", pred_p)]]<- stats::rnorm(nimble_constants$D,0,0.1)
+            }
+          }
+          nimble_monitors[[paste0("alpha_", pred_p)]] <- paste0("alpha_", pred_p)
+
+        }
+
+      }
+    }
+
+  }
+
+  # Add priors for spline coefficients
+
+  if (!is.null(spline_terms_delay)) {
+    # for(j in 1:length(spline_terms_delay)){
+    #   nimble_code <- paste0(nimble_code, "  alpha_spline_", spline_terms_delay[j],"[1:N] <- g_spline_",spline_terms_delay[j],"[1:N,1:K_",spline_terms_delay[j],"]%*%kappa_alpha_", spline_terms_delay[j], "[1:K_",spline_terms_delay[j],"] \n")
+    #   nimble_code <- paste0(nimble_code, "  for(k_", spline_terms_delay[j], " in 1:K_",spline_terms_delay[j],"){\n")
+    #   nimble_code <- paste0(nimble_code,"    ", "kappa_alpha_",spline_terms_delay[j],"[k_",spline_terms_delay[j], "] ~ dnorm(0, 10)\n",sep='')
+    #   nimble_code <- paste0(nimble_code, "  }\n")
+    #
+    # }
+    for(j in 1:length(spline_terms_delay)){
+      if(stringr::str_detect(tolower(delay_link), "survivor")){
+        # nimble_constants[[paste("S_alpha_",pred_name,i,sep='')]]<-jagam_output$jags.data$S1[,(1+(i-1)*dim(jagam_output$jags.data$S1)[1]):(i*dim(jagam_output$jags.data$S1)[1])]
+        nimble_code <- paste0(nimble_code, aggregate_space, "alpha_spline_",spline_terms_delay[j],"[1:N", aggregate_index,"] <- ","g_spline_",spline_terms_delay[j], "[1:N, 1:K_alpha_",pred_name,"]%*%kappa_alpha_", pred_name, "[1:K_alpha_",pred_name, aggregate_index, "] \n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "kappa_alpha_",spline_terms_delay[j],"[1:K_alpha_",spline_terms_delay[j] ,aggregate_index,"] ~ dmnorm(zeros[", "1:K_alpha_",spline_terms_delay[j],"],","omega_alpha_",spline_terms_delay[j],"[", "1:K_alpha_",spline_terms_delay[j], ", 1:K_alpha_",spline_terms_delay[j], aggregate_index,"])\n",sep='')
+        nimble_constants$zeros<-rep(0,max(c(length(nimble_constants$zeros), nimble_constants[[paste("K_alpha_",spline_terms_delay[j],sep='')]])))
         # Penalty matrix for MVN distribution.
-        nimble_code <- paste0(nimble_code, aggregate_space, "omega_beta_",spline_terms[j],"[", "1:K_beta_",spline_terms[j], ", 1:K_beta_",spline_terms[j], aggregate_index, "] <-",sep='')
-        S_n<-(dim(jagam_output_totals[[j]]$jags.data$S1)[2]/dim(jagam_output_totals[[j]]$jags.data$S1)[1])
+        nimble_code <- paste0(nimble_code, aggregate_space, "omega_alpha_",spline_terms_delay[j],"[1:K_alpha_",spline_terms_delay[j], ", 1:K_alpha_",spline_terms_delay[j], aggregate_index,"] <-",sep='')
+        S_n<-(dim(jagam_output_delay[[j]]$jags.data$S1)[2]/dim(jagam_output_delay[[j]]$jags.data$S1)[1])
         for(i in 1:S_n){
-          nimble_code <- paste0(nimble_code,"S_beta_",spline_terms[j],"[", "1:K_beta_",spline_terms[j], ", (1 + ",(i-1),"*K_beta_",spline_terms[j],"):(",i,"*K_beta_",spline_terms[j], ")]/sigma_beta_",spline_terms[j],i,aggregate_single,"^2 + ",sep='')
+          nimble_code <- paste0(nimble_code,"S_alpha_",spline_terms_delay[j],"[1:K_alpha_",spline_terms_delay[j], ", (1 + ",(i-1),"*K_alpha_",spline_terms_delay[j],"):(",i,"*K_alpha_",spline_terms_delay[j], ")]/sigma_alpha_", spline_terms_delay[j], i, aggregate_single, "^2 + ",sep='')
           if(i==S_n){
             nimble_code <- substr(nimble_code, 1, nchar(nimble_code) - 3)
             nimble_code <- paste0(nimble_code," \n",sep='')
           }
         }
         for(i in 1:S_n){
-          nimble_code <- paste0(nimble_code, aggregate_space, "sigma_beta_", spline_terms[j],i,aggregate_single," ~ ",nimble_priors$totals.spline," \n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "sigma_alpha_",spline_terms_delay[j],i, aggregate_single," ~ ", nimble_priors$delay.spline, " \n")
           for(c in 1:nchains){
             if(aggregate){
-              nimble_initial_values[[c]][[paste("sigma_beta_", spline_terms[j],i,sep='')]]<- stats::runif(nimble_constants$A, 0, 1)
+              nimble_initial_values[[c]][[paste("sigma_alpha_",spline_terms_delay[j],i,sep='')]]<- stats::runif(nimble_constants$A, 0, 1)
+
             }else{
-              nimble_initial_values[[c]][[paste("sigma_beta_", spline_terms[j],i,sep='')]]<- stats::runif(1, 0, 1)
+              nimble_initial_values[[c]][[paste("sigma_alpha_",spline_terms_delay[j],i,sep='')]]<- stats::runif(1, 0, 1)
             }
           }
-          nimble_monitors[[paste("sigma_beta_", spline_terms[j],i,sep='')]]<-paste("sigma_beta_", spline_terms[j],i,sep='')
-
-        }
-      }
-    }
-
-    # Add priors for random effects and structured terms
-    if (length(random_effects) > 0) {
-      for (random_name in names(random_effects)) {
-        nimble_code <- paste0(nimble_code, aggregate_space, "for(i in 1:N){\n")
-        nimble_code <- paste0(nimble_code, aggregate_space, "  ", "u_", random_name, "[i",aggregate_index,"] ~ dnorm(0, tau_", random_name, aggregate_single, ")\n")
-        nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-        nimble_code <- paste0(nimble_code, aggregate_space, "tau_", random_name, aggregate_single, " ~  ",nimble_priors$totals.iid, "\n")
-
-      }
-    }
-
-    if (length(structured_terms) > 0) {
-      for (term_name in names(structured_terms)) {
-        if (structured_terms[[term_name]] == "rw1") {
-          nimble_code <- paste0(nimble_code, aggregate_space, "u_rw1_", term_name, "[1", aggregate_index, "] ~ dnorm(0",", ", "tau_rw1_", term_name, aggregate_single, ")\n")
-          nimble_code <- paste0(nimble_code, aggregate_space, "for(j_", term_name, " in 2:N){\n")
-          nimble_code <- paste0(nimble_code, aggregate_space, "  ", "u_rw1_", term_name, "[j_", term_name, aggregate_index, "] ~ dnorm(u_rw1_", term_name,"[j_", term_name, "-1", aggregate_index,"]",", ", "tau_rw1_", term_name, aggregate_single, ")\n")
-          nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-          nimble_code <- paste0(nimble_code, aggregate_space, "tau_rw1_", term_name, aggregate_single, " ~ ", nimble_priors$totals.rw1, "\n")
-        } else if (structured_terms[[term_name]] == "rw2") {
-          nimble_code <- paste0(nimble_code, aggregate_space, "u_rw2_", term_name, "[1", aggregate_index,"] ~ dnorm(0, tau_rw2_", term_name, aggregate_single, ")\n")
-          nimble_code <- paste0(nimble_code, aggregate_space, "u_rw2_", term_name, "[2", aggregate_index,"] ~ dnorm(u_rw2_", term_name, "[1",aggregate_index,"], ", "tau_rw2_", term_name, aggregate_single, ")\n")
-          nimble_code <- paste0(nimble_code, aggregate_space, "for(j_", term_name, " in 3:N){\n")
-          nimble_code <- paste0(nimble_code, aggregate_space, "    ", "u_rw2_", term_name, "[j_", term_name, aggregate_index , "] ~ dnorm(2*u_rw2_", term_name,"[j_", term_name, "-1", aggregate_index,"] - u_rw2_", term_name, "[j_", term_name, "-2", aggregate_index,"]", ", ", "tau_rw2_", term_name, aggregate_single, ")\n")
-          nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-          nimble_code <- paste0(nimble_code, aggregate_space, "tau_rw2_", term_name, aggregate_single, " ~ ", nimble_priors$totals.rw2, "\n")
-          # } else if (structured_terms[[term_name]] == "seasonal") {
-          #   nimble_code <- paste0(nimble_code, "  u_seasonal_", term_name, "[1:N] ~ dPeriodic(tau_seasonal_", term_name, ")\n")
-          #   nimble_code <- paste0(nimble_code, "  tau_seasonal_", term_name, " ~ T(dnorm(0,1),0,)\n")
-        }
-        # else if (structured_terms[[term_name]] == "spatial") { # EDIT allow for spatial effect
-        #   nimble_code <- paste0(nimble_code, aggregate_space, "u_spatial[1:N", aggregate_index,"] ~ dcar_normal(adj[], num[], tau_spatial",aggregate_single,")\n")
-        #   nimble_code <- paste0(nimble_code, aggregate_space, "tau_spatial",aggregate_single," ~ T(dnorm(0,1),0,)\n")
-        # }
-      }
-    }
-
-    # Add priors for family-specific parameters
-    if(!is.null(family$total)){
-      if ((tolower(family$total)=="nb")){
-        nimble_code <- paste0(nimble_code, aggregate_space, "theta", aggregate_single, " ~ ", nimble_priors$totals.dispersion, "\n")
-      }
-    }
-
-    ### Priors for delay model
-
-    # Add prior distributions for the coefficients
-    nimble_code <- paste0(nimble_code, aggregate_space, "# Priors delay\n")
-    if (stringr::str_detect(tolower(delay_link), "survivor")) {
-      nimble_code <- paste0(nimble_code, aggregate_space, "alpha_0[1", aggregate_index,"] ~ ", nimble_priors$delay.intercept, "\n")
-      nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 2:D){\n")
-      nimble_code <- paste0(nimble_code, aggregate_space, "  alpha_0[d", aggregate_index,"] ~ T(dnorm(alpha_0[d-1", aggregate_index,"], sd=10), alpha_0[d-1", aggregate_index,"], )\n")
-      nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-      for(c in 1:nchains){
-        if(aggregate){
-          nimble_initial_values[[c]][["alpha_0"]]<- matrix(sort(stats::rnorm(nimble_constants$D*nimble_constants$A,0,0.1)), ncol=nimble_constants$A, byrow = TRUE)
-        }else{
-          nimble_initial_values[[c]][["alpha_0"]]<- sort(stats::rnorm(nimble_constants$D,0,0.1))
-        }
-      }
-
-
-    } else if ((tolower(delay_link)=="log")|(tolower(delay_link)=="logit")){ # EDIT - also multinomial?
-      nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:(D+1)){\n")
-      nimble_code <- paste0(nimble_code, aggregate_space, "alpha_0[d", aggregate_index,"] ~ ", nimble_priors$delay.intercept, "\n")
-      nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-      for(c in 1:nchains){
-        if(aggregate){
-          nimble_initial_values[[c]][["alpha_0"]]<- matrix(sort(stats::rnorm((nimble_constants$D+1)*nimble_constants$A,0,0.1)), ncol=nimble_constants$A, byrow = TRUE)
-        }else{
-          nimble_initial_values[[c]][["alpha_0"]]<- sort(stats::rnorm((nimble_constants$D+1),0,0.1))
-        }
-      }
-
-
-    }else{
-
-      nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:D){\n")
-      nimble_code <- paste0(nimble_code, aggregate_space, "  alpha_0[d", aggregate_index,"] ~ ", nimble_priors$delay.intercept, "\n")
-      nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-      for(c in 1:nchains){
-        if(aggregate){
-          nimble_initial_values[[c]][["alpha_0"]]<- matrix(stats::rnorm(nimble_constants$D*nimble_constants$A,0,0.1), ncol=nimble_constants$A)
-        }else{
-          nimble_initial_values[[c]][["alpha_0"]]<- stats::rnorm(nimble_constants$D,0,0.1)
-        }
-      }
-
-    }
-
-
-    nimble_monitors[[paste0("alpha_0")]]<-paste0("alpha_0")
-
-
-    # Add priors for regular predictors_partial
-    for (pred_p in predictors_partial) {
-      if(stringr::str_detect(tolower(delay_link), "survivor")){
-        if (!stringr::str_detect(pred_p, "s\\(") && pred_p != "1" && !stringr::str_detect(pred_p, "f\\(")) {
-          nimble_code <- paste0(nimble_code, aggregate_space, "  ", "alpha_", pred_p, aggregate_single," ~ ", nimble_priors$delay.re, "\n")
-          for(c in 1:nchains){
-            if(aggregate){
-              nimble_initial_values[[c]][[paste0("alpha_", pred_p)]]<- stats::rnorm(nimble_constants$A,0,0.1)
-            }else{
-              nimble_initial_values[[c]][[paste0("alpha_", pred_p)]]<- stats::rnorm(1,0,0.1)
-            }
-          }
-          nimble_monitors[[paste0("alpha_", pred_p)]] <- paste0("alpha_", pred_p)
+          nimble_monitors[[paste("sigma_alpha_",spline_terms_delay[j],i,sep='')]] <- paste("sigma_alpha_",spline_terms_delay[j],i,sep='')
 
         }
       }else{
-        if (!stringr::str_detect(pred_p, "s\\(") && pred_p != "1" && !stringr::str_detect(pred_p, "f\\(")) {
+        # nimble_constants[[paste("S_alpha_",pred_name,i,sep='')]]<-jagam_output$jags.data$S1[,(1+(i-1)*dim(jagam_output$jags.data$S1)[1]):(i*dim(jagam_output$jags.data$S1)[1])]
+        nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:D){ \n")
+        nimble_code <- paste0(nimble_code, aggregate_space,"  ", "alpha_spline_",spline_terms_delay[j],"[1:N, d", aggregate_index,"] <- ","g_spline_",spline_terms_delay[j], "[1:N, 1:K_alpha_",pred_name,"]%*%kappa_alpha_", pred_name, "[1:K_alpha_",pred_name,", d", aggregate_index, "] \n")
+        nimble_code <- paste0(nimble_code, aggregate_space,"  ", "kappa_alpha_",spline_terms_delay[j],"[1:K_alpha_",spline_terms_delay[j], ", d" ,aggregate_index,"] ~ dmnorm(zeros[", "1:K_alpha_",spline_terms_delay[j],"],","omega_alpha_",spline_terms_delay[j],"[", "1:K_alpha_",spline_terms_delay[j], ", 1:K_alpha_",spline_terms_delay[j], ", d", aggregate_index,"])\n",sep='')
+        nimble_constants$zeros<-rep(0,max(c(length(nimble_constants$zeros), nimble_constants[[paste("K_alpha_",spline_terms_delay[j],sep='')]])))
+        # Penalty matrix for MVN distribution.
+        nimble_code <- paste0(nimble_code, aggregate_space,"  ", "omega_alpha_",spline_terms_delay[j],"[1:K_alpha_",spline_terms_delay[j], ", 1:K_alpha_",spline_terms_delay[j],", d", aggregate_index,"] <-",sep='')
+        S_n<-(dim(jagam_output_delay[[j]]$jags.data$S1)[2]/dim(jagam_output_delay[[j]]$jags.data$S1)[1])
+        for(i in 1:S_n){
+          nimble_code <- paste0(nimble_code,"S_alpha_",spline_terms_delay[j],"[1:K_alpha_",spline_terms_delay[j], ", (1 + ",(i-1),"*K_alpha_",spline_terms_delay[j],"):(",i,"*K_alpha_",spline_terms_delay[j], ")]/sigma_alpha_",spline_terms_delay[j],i,"[d",aggregate_index,"]^2 + ",sep='')
+          if(i==S_n){
+            nimble_code <- substr(nimble_code, 1, nchar(nimble_code) - 3)
+            nimble_code <- paste0(nimble_code," \n",sep='')
+          }
+        }
+        for(i in 1:S_n){
+          nimble_code <- paste0(nimble_code, aggregate_space,"  ", "sigma_alpha_",spline_terms_delay[j],i,"[d",aggregate_index, "] ~ ", nimble_priors$delay.spline, " \n")
+          for(c in 1:nchains){
+            if(aggregate){
+              nimble_initial_values[[c]][[paste("sigma_alpha_",spline_terms_delay[j],i,sep='')]]<- matrix(stats::runif(nimble_constants$A*nimble_constants$D, 0, 1),nrow=nimble_constants$D)
+
+            }else{
+              nimble_initial_values[[c]][[paste("sigma_alpha_",spline_terms_delay[j],i,sep='')]]<- stats::runif(nimble_constants$D, 0, 1)
+            }
+          }
+          nimble_monitors[[paste("sigma_alpha_",spline_terms_delay[j],i,sep='')]] <- paste("sigma_alpha_",spline_terms_delay[j],i,sep='')
+
+        }
+        # End delay loop
+        nimble_code <- paste0(nimble_code, aggregate_space," } \n")
+      }
+    }
+  }
+
+  # Add priors for random effects and structured terms
+  if (length(random_effects_delay) > 0) {
+    for (random_name in names(random_effects_delay)) {
+      if(stringr::str_detect(tolower(delay_link), "survivor")){
+        nimble_code <- paste0(nimble_code, aggregate_space, "for(i in 1:N) { \n")
+        nimble_code <- paste0(nimble_code, aggregate_space,  "  ","v_", random_name, "[i", aggregate_index, "] ~ dnorm(0, tav_", random_name, aggregate_single ,")\n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
+        nimble_code <- paste0(nimble_code, aggregate_space,  "  ","tav_", random_name,  aggregate_single, " ~ ", nimble_priors$delay.iid, "\n")
+      }else{
+        if ((tolower(delay_link)=="log"|(tolower(delay_link)=="logit"))){
+          nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:(D+1)) { \n")
+        }else{
+          nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:D) { \n")
+        }
+        nimble_code <- paste0(nimble_code, aggregate_space, "  ",  "for(i in 1:N) { \n")
+        nimble_code <- paste0(nimble_code, aggregate_space,  "  ", "  ","v_", random_name, "[i, d", aggregate_index, "] ~ dnorm(0, tav_", random_name, "[d", aggregate_index, "])\n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "  ", "}\n")
+        nimble_code <- paste0(nimble_code, aggregate_space,  "  ","tav_", random_name, "[d", aggregate_index, "] ~ ", nimble_priors$delay.iid, "\n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
+      }
+
+    }
+  }
+
+  if (length(structured_terms_delay) > 0) {
+    for (term_name in names(structured_terms_delay)) {
+      if(stringr::str_detect(tolower(delay_link), "survivor")){
+        if (structured_terms_delay[[term_name]] == "rw1") {
+          nimble_code <- paste0(nimble_code, aggregate_space, "v_rw1_", term_name, "[1", aggregate_index,"] ~ dnorm(0",", ", "tav_rw1_", term_name, aggregate_single,")\n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "for(j_", term_name, " in 2:N){\n")
+          nimble_code <- paste0(nimble_code, aggregate_space,"  ", "v_rw1_", term_name, "[j_", term_name, aggregate_index,"] ~ dnorm(v_rw1_", term_name,"[j_", term_name, "-1", aggregate_index, "]",", ", "tav_rw1_", term_name, aggregate_single, ")\n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "tav_rw1_", term_name, aggregate_single, " ~ ", nimble_priors$delay.rw1, "\n")
+
+          # } else if (structured_terms_delay[[term_name]] == "rw2") {
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "v_rw2_", term_name, "[1", aggregate_index,"] ~ dnorm(0, tav_rw2_", term_name, aggregate_single, ")\n")
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "v_rw2_", term_name, "[2", aggregate_index,"] ~ dnorm(v_rw2_", term_name, "[1", aggregate_index,"], ", "tav_rw2_", term_name, aggregate_single, ")\n")
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "for(j_", term_name, " in 3:N){\n")
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "v_rw2_", term_name, "[j_", term_name, aggregate_index,"] ~ dnorm(2*v_rw2_", term_name,"[j_", term_name, "-1", aggregate_index,"] - v_rw2_", term_name, "[j_", term_name, "-2", aggregate_index,"]", ", ", "tav_rw2_", term_name, aggregate_single, ")\n")
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "tav_rw2_", term_name, aggregate_single, " ~ ", nimble_priors$delay.rw2, "\n")
+          #
+          # } else if (structured_terms_delay[[term_name]] == "seasonal") {
+          #   nimble_code <- paste0(nimble_code, "  v_seasonal_", term_name, "[1:N] ~ dPeriodic(tav_seasonal_", term_name, ")\n")
+          #   nimble_code <- paste0(nimble_code, "  tav_seasonal_", term_name, " ~ T(dnorm(0,1),0,)\n")
+
+
+          # }else if (structured_terms_delay[[term_name]] == "spatial") { #EDIT for spatial effect
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "v_spatial[1:N", aggregate_index,"] ~ dcar_normal(adj[], num[], tav_spatial",aggregate_single,")\n")
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "tav_spatial",aggregate_single,," ~ T(dnorm(0,1),0,)\n")
+          #
+        }
+
+
+      }else{
+        if (structured_terms_delay[[term_name]] == "rw1") {
           if ((tolower(delay_link)=="log"|(tolower(delay_link)=="logit"))){
             nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:(D+1)) { \n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "  ", "alpha_", pred_p, "[d", aggregate_index, "] ~ ", nimble_priors$delay.re, "\n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "} \n")
-            for(c in 1:nchains){
-              if(aggregate){
-                nimble_initial_values[[c]][[paste0("alpha_", pred_p)]]<- matrix(stats::rnorm(nimble_constants$A*(nimble_constants$D+1),0,0.1), ncol=nimble_constants$A)
-              }else{
-                nimble_initial_values[[c]][[paste0("alpha_", pred_p)]]<- stats::rnorm((nimble_constants$D+1),0,0.1)
-              }
-            }
-            nimble_monitors[[paste0("alpha_", pred_p)]] <- paste0("alpha_", pred_p)
-
           }else{
             nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:D) { \n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "  ", "alpha_", pred_p, "[d", aggregate_index, "] ~ ", nimble_priors$delay.re, "\n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "} \n")
-            for(c in 1:nchains){
-              if(aggregate){
-                nimble_initial_values[[c]][[paste0("alpha_", pred_p)]]<- matrix(stats::rnorm(nimble_constants$A*nimble_constants$D,0,0.1), ncol=nimble_constants$A)
-              }else{
-                nimble_initial_values[[c]][[paste0("alpha_", pred_p)]]<- stats::rnorm(nimble_constants$D,0,0.1)
-              }
-            }
-            nimble_monitors[[paste0("alpha_", pred_p)]] <- paste0("alpha_", pred_p)
-
           }
+          nimble_code <- paste0(nimble_code, aggregate_space, "  ","v_rw1_", term_name, "[1, d", aggregate_index,"] ~ dnorm(0",", ", "tav_rw1_", term_name, "[d", aggregate_index, "])\n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "  ","for(j_", term_name, " in 2:N){\n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "  ","  ", "v_rw1_", term_name, "[j_", term_name, ", d", aggregate_index,"] ~ dnorm(v_rw1_", term_name,"[j_", term_name, "-1, d", aggregate_index, "]",", ", "tav_rw1_", term_name, "[d", aggregate_index, "])\n")
+          nimble_code <- paste0(nimble_code, aggregate_space,"  ", "}\n")
+          nimble_code <- paste0(nimble_code, aggregate_space,"  ", "tav_rw1_", term_name, "[d", aggregate_index, "] ~ ", nimble_priors$delay.rw1, "\n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
 
+          # } else if (structured_terms_delay[[term_name]] == "rw2") {
+          #   if ((tolower(delay_link)=="log"|(tolower(delay_link)=="logit"))){
+          #     nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:(D+1)) { \n")
+          #   }else{
+          #     nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:D) { \n")
+          #   }
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "v_rw2_", term_name, "[1, d", aggregate_index,"] ~ dnorm(0, tav_rw2_", term_name,"[d", aggregate_index, "])\n")
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "v_rw2_", term_name, "[2, d", aggregate_index,"] ~ dnorm(v_rw2_", term_name, "[1, d", aggregate_index,"], ", "tav_rw2_", term_name,"[d", aggregate_index, "])\n")
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "for(j_", term_name, " in 3:N){\n")
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "  ", "v_rw2_", term_name, "[j_", term_name,", d", aggregate_index,"] ~ dnorm(2*v_rw2_", term_name,"[j_", term_name, "-1, d", aggregate_index,"] - v_rw2_", term_name, "[j_", term_name, "-2, d", aggregate_index,"]", ", ", "tav_rw2_", term_name,"[d", aggregate_index, "])\n")
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "}\n")
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "tav_rw2_", term_name,"[d", aggregate_index, "] ~ ", nimble_priors$delay.rw2, "\n")
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
+          #
+          #   # } else if (structured_terms_delay[[term_name]] == "seasonal") {
+          #   #   nimble_code <- paste0(nimble_code, "  v_seasonal_", term_name, "[1:N] ~ dPeriodic(tav_seasonal_", term_name, ")\n")
+          #   #   nimble_code <- paste0(nimble_code, "  tav_seasonal_", term_name, " ~ T(dnorm(0,1),0,)\n")
+          #
+          # } else if (structured_terms_delay[[term_name]] == "spatial") { #EDIT for spatial effect
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:D) { \n")
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "v_spatial[1:N, d", aggregate_index,"] ~ dcar_normal(adj[], num[], tav_spatial[d", aggregate_index, "])\n")
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "tav_spatial[d", aggregate_index, "] ~ T(dnorm(0,1),0,)\n")
+          #   nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
+          #
         }
       }
 
+    }
+  }
+
+  if((tolower(family$delay)=="nb")|(tolower(family$delay)=="gdm")|(tolower(family$delay)=="dirichlet-multinomial")){
+    # Add priors for family-specific parameters
+    if((tolower(family$delay)=="gdm")){
+      nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:D) {\n")
+    }else{
+      nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:(D+1)) {\n")
+    }
+    nimble_code <- paste0(nimble_code, aggregate_space, "  ", "phi[d", aggregate_index,"] ~ ", nimble_priors$delay.dispersion, "\n")
+    nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
+  }
+
+
+  ### Priors for nested model
+
+  if(nested){
+
+    # EDIT need to add link choices for multiple viruses - modelling relative proportion!
+    # Add prior distributions for the coefficients
+    nimble_code <- paste0(nimble_code, aggregate_space, "# Priors nested\n")
+    nimble_code <- paste0(nimble_code, aggregate_space, "  gamma_0", aggregate_single , "~ ", nimble_priors$nested.intercept, "\n")
+    for(c in 1:nchains){
+      if(aggregate){
+        nimble_initial_values[[c]][["gamma_0"]]<- stats::rnorm(nimble_constants$A,0,0.1)
+      }else{
+        nimble_initial_values[[c]][["gamma_0"]]<- stats::rnorm(1,0,0.1)
+      }
+    }
+    nimble_monitors[["gamma_0"]] <- "gamma_0"
+
+
+
+    # Add priors for regular predictors
+    for (pred in predictors_nested) {
+      if (!stringr::str_detect(pred, "s\\(") && pred != "1" && !stringr::str_detect(pred, "f\\(")) {
+        nimble_code <- paste0(nimble_code, aggregate_space, "gamma_", pred, aggregate_single, " ~ ", nimble_priors$nested.re, "\n")
+        # for(c in 1:nchains){
+        #   if(aggregate){
+        #     nimble_initial_values[[c]][[paste0("gamma_", pred)]]<- stats::rnorm(nimble_constants$A,0,0.1)
+        #   }else{
+        #     nimble_initial_values[[c]][[paste0("gamma_", pred)]]<- stats::rnorm(1,0,0.1)
+        #   }
+        # }
+        # nimble_monitors[[paste0("gamma_", pred)]] <- paste0("gamma_", pred)
+
+      }
     }
 
     # Add priors for spline coefficients
-
-    if (!is.null(spline_terms_delay)) {
-      # for(j in 1:length(spline_terms_delay)){
-      #   nimble_code <- paste0(nimble_code, "  alpha_spline_", spline_terms_delay[j],"[1:N] <- g_spline_",spline_terms_delay[j],"[1:N,1:K_",spline_terms_delay[j],"]%*%kappa_alpha_", spline_terms_delay[j], "[1:K_",spline_terms_delay[j],"] \n")
-      #   nimble_code <- paste0(nimble_code, "  for(k_", spline_terms_delay[j], " in 1:K_",spline_terms_delay[j],"){\n")
-      #   nimble_code <- paste0(nimble_code,"    ", "kappa_alpha_",spline_terms_delay[j],"[k_",spline_terms_delay[j], "] ~ dnorm(0, 10)\n",sep='')
-      #   nimble_code <- paste0(nimble_code, "  }\n")
-      #
-      # }
-      for(j in 1:length(spline_terms_delay)){
-        if(stringr::str_detect(tolower(delay_link), "survivor")){
-          # nimble_constants[[paste("S_alpha_",pred_name,i,sep='')]]<-jagam_output$jags.data$S1[,(1+(i-1)*dim(jagam_output$jags.data$S1)[1]):(i*dim(jagam_output$jags.data$S1)[1])]
-          nimble_code <- paste0(nimble_code, aggregate_space, "alpha_spline_",spline_terms_delay[j],"[1:N", aggregate_index,"] <- ","g_spline_",spline_terms_delay[j], "[1:N, 1:K_alpha_",pred_name,"]%*%kappa_alpha_", pred_name, "[1:K_alpha_",pred_name, aggregate_index, "] \n")
-          nimble_code <- paste0(nimble_code, aggregate_space, "kappa_alpha_",spline_terms_delay[j],"[1:K_alpha_",spline_terms_delay[j] ,aggregate_index,"] ~ dmnorm(zeros[", "1:K_alpha_",spline_terms_delay[j],"],","omega_alpha_",spline_terms_delay[j],"[", "1:K_alpha_",spline_terms_delay[j], ", 1:K_alpha_",spline_terms_delay[j], aggregate_index,"])\n",sep='')
-          nimble_constants$zeros<-rep(0,max(c(length(nimble_constants$zeros), nimble_constants[[paste("K_alpha_",spline_terms_delay[j],sep='')]])))
-          # Penalty matrix for MVN distribution.
-          nimble_code <- paste0(nimble_code, aggregate_space, "omega_alpha_",spline_terms_delay[j],"[1:K_alpha_",spline_terms_delay[j], ", 1:K_alpha_",spline_terms_delay[j], aggregate_index,"] <-",sep='')
-          S_n<-(dim(jagam_output_delay[[j]]$jags.data$S1)[2]/dim(jagam_output_delay[[j]]$jags.data$S1)[1])
-          for(i in 1:S_n){
-            nimble_code <- paste0(nimble_code,"S_alpha_",spline_terms_delay[j],"[1:K_alpha_",spline_terms_delay[j], ", (1 + ",(i-1),"*K_alpha_",spline_terms_delay[j],"):(",i,"*K_alpha_",spline_terms_delay[j], ")]/sigma_alpha_", spline_terms_delay[j], i, aggregate_single, "^2 + ",sep='')
-            if(i==S_n){
-              nimble_code <- substr(nimble_code, 1, nchar(nimble_code) - 3)
-              nimble_code <- paste0(nimble_code," \n",sep='')
-            }
+    if (!is.null(spline_terms_nested)) {
+      nimble_code <- paste0(nimble_code, aggregate_space, "# Priors for totals spline \n")
+      for(j in 1:length(spline_terms_nested)){
+        # nimble_constants[[paste("S_gamma_",pred_name,i,sep='')]]<-jagam_output$jags.data$S1[,(1+(i-1)*dim(jagam_output$jags.data$S1)[1]):(i*dim(jagam_output$jags.data$S1)[1])]
+        nimble_code <- paste0(nimble_code, aggregate_space, "gamma_spline_",spline_terms_nested[j],"[1:N", aggregate_index, "] <- ","f_spline_",spline_terms_nested[j], "[1:N, 1:K_gamma_",pred_name,"]%*%kappa_gamma_", pred_name, "[1:K_gamma_",pred_name, aggregate_index, "] \n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "kappa_gamma_",spline_terms_nested[j],"[", "1:K_gamma_",spline_terms_nested[j], aggregate_index, "] ~ dmnorm(zeros[", "1:K_gamma_",spline_terms_nested[j],"],","omega_gamma_",spline_terms_nested[j],"[", "1:K_gamma_",spline_terms_nested[j], ", 1:K_gamma_",spline_terms_nested[j], aggregate_index, "])\n",sep='')
+        nimble_constants$zeros<-rep(0,max(c(length(nimble_constants$zeros), nimble_constants[[paste("K_gamma_",spline_terms_nested[j],sep='')]])))
+        # Penalty matrix for MVN distribution.
+        nimble_code <- paste0(nimble_code, aggregate_space, "omega_gamma_",spline_terms_nested[j],"[", "1:K_gamma_",spline_terms_nested[j], ", 1:K_gamma_",spline_terms_nested[j], aggregate_index, "] <-",sep='')
+        S_n<-(dim(jagam_output_nested[[j]]$jags.data$S1)[2]/dim(jagam_output_nested[[j]]$jags.data$S1)[1])
+        for(i in 1:S_n){
+          nimble_code <- paste0(nimble_code,"S_gamma_",spline_terms_nested[j],"[", "1:K_gamma_",spline_terms_nested[j], ", (1 + ",(i-1),"*K_gamma_",spline_terms_nested[j],"):(",i,"*K_gamma_",spline_terms_nested[j], ")]/sigma_gamma_",spline_terms_nested[j],i,aggregate_single,"^2 + ",sep='')
+          if(i==S_n){
+            nimble_code <- substr(nimble_code, 1, nchar(nimble_code) - 3)
+            nimble_code <- paste0(nimble_code," \n",sep='')
           }
-          for(i in 1:S_n){
-            nimble_code <- paste0(nimble_code, aggregate_space, "sigma_alpha_",spline_terms_delay[j],i, aggregate_single," ~ ", nimble_priors$delay.spline, " \n")
-            for(c in 1:nchains){
-              if(aggregate){
-                nimble_initial_values[[c]][[paste("sigma_alpha_",spline_terms_delay[j],i,sep='')]]<- stats::runif(nimble_constants$A, 0, 1)
-
-              }else{
-                nimble_initial_values[[c]][[paste("sigma_alpha_",spline_terms_delay[j],i,sep='')]]<- stats::runif(1, 0, 1)
-              }
+        }
+        for(i in 1:S_n){
+          nimble_code <- paste0(nimble_code, aggregate_space, "sigma_gamma_", spline_terms_nested[j],i,aggregate_single," ~ ", nimble_priors$nested.spline, " \n")
+          for(c in 1:nchains){
+            if(aggregate){
+              nimble_initial_values[[c]][[paste("sigma_gamma_", spline_terms_nested[j],i,sep='')]]<- stats::runif(nimble_constants$A, 0, 1)
+            }else{
+              nimble_initial_values[[c]][[paste("sigma_gamma_", spline_terms_nested[j],i,sep='')]]<- stats::runif(1, 0, 1)
             }
-            nimble_monitors[[paste("sigma_alpha_",spline_terms_delay[j],i,sep='')]] <- paste("sigma_alpha_",spline_terms_delay[j],i,sep='')
-
+            nimble_monitors[[paste("sigma_gamma_", spline_terms_nested[j],i,sep='')]] <- paste("sigma_gamma_", spline_terms_nested[j],i,sep='')
           }
-        }else{
-          # nimble_constants[[paste("S_alpha_",pred_name,i,sep='')]]<-jagam_output$jags.data$S1[,(1+(i-1)*dim(jagam_output$jags.data$S1)[1]):(i*dim(jagam_output$jags.data$S1)[1])]
-          nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:D){ \n")
-          nimble_code <- paste0(nimble_code, aggregate_space,"  ", "alpha_spline_",spline_terms_delay[j],"[1:N, d", aggregate_index,"] <- ","g_spline_",spline_terms_delay[j], "[1:N, 1:K_alpha_",pred_name,"]%*%kappa_alpha_", pred_name, "[1:K_alpha_",pred_name,", d", aggregate_index, "] \n")
-          nimble_code <- paste0(nimble_code, aggregate_space,"  ", "kappa_alpha_",spline_terms_delay[j],"[1:K_alpha_",spline_terms_delay[j], ", d" ,aggregate_index,"] ~ dmnorm(zeros[", "1:K_alpha_",spline_terms_delay[j],"],","omega_alpha_",spline_terms_delay[j],"[", "1:K_alpha_",spline_terms_delay[j], ", 1:K_alpha_",spline_terms_delay[j], ", d", aggregate_index,"])\n",sep='')
-          nimble_constants$zeros<-rep(0,max(c(length(nimble_constants$zeros), nimble_constants[[paste("K_alpha_",spline_terms_delay[j],sep='')]])))
-          # Penalty matrix for MVN distribution.
-          nimble_code <- paste0(nimble_code, aggregate_space,"  ", "omega_alpha_",spline_terms_delay[j],"[1:K_alpha_",spline_terms_delay[j], ", 1:K_alpha_",spline_terms_delay[j],", d", aggregate_index,"] <-",sep='')
-          S_n<-(dim(jagam_output_delay[[j]]$jags.data$S1)[2]/dim(jagam_output_delay[[j]]$jags.data$S1)[1])
-          for(i in 1:S_n){
-            nimble_code <- paste0(nimble_code,"S_alpha_",spline_terms_delay[j],"[1:K_alpha_",spline_terms_delay[j], ", (1 + ",(i-1),"*K_alpha_",spline_terms_delay[j],"):(",i,"*K_alpha_",spline_terms_delay[j], ")]/sigma_alpha_",spline_terms_delay[j],i,"[d",aggregate_index,"]^2 + ",sep='')
-            if(i==S_n){
-              nimble_code <- substr(nimble_code, 1, nchar(nimble_code) - 3)
-              nimble_code <- paste0(nimble_code," \n",sep='')
-            }
-          }
-          for(i in 1:S_n){
-            nimble_code <- paste0(nimble_code, aggregate_space,"  ", "sigma_alpha_",spline_terms_delay[j],i,"[d",aggregate_index, "] ~ ", nimble_priors$delay.spline, " \n")
-            for(c in 1:nchains){
-              if(aggregate){
-                nimble_initial_values[[c]][[paste("sigma_alpha_",spline_terms_delay[j],i,sep='')]]<- matrix(stats::runif(nimble_constants$A*nimble_constants$D, 0, 1),nrow=nimble_constants$D)
-
-              }else{
-                nimble_initial_values[[c]][[paste("sigma_alpha_",spline_terms_delay[j],i,sep='')]]<- stats::runif(nimble_constants$D, 0, 1)
-              }
-            }
-            nimble_monitors[[paste("sigma_alpha_",spline_terms_delay[j],i,sep='')]] <- paste("sigma_alpha_",spline_terms_delay[j],i,sep='')
-
-          }
-          # End delay loop
-          nimble_code <- paste0(nimble_code, aggregate_space," } \n")
         }
       }
     }
 
     # Add priors for random effects and structured terms
-    if (length(random_effects_delay) > 0) {
-      for (random_name in names(random_effects_delay)) {
-        if(stringr::str_detect(tolower(delay_link), "survivor")){
-          nimble_code <- paste0(nimble_code, aggregate_space, "for(i in 1:N) { \n")
-          nimble_code <- paste0(nimble_code, aggregate_space,  "  ","v_", random_name, "[i", aggregate_index, "] ~ dnorm(0, tav_", random_name, aggregate_single ,")\n")
-          nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-          nimble_code <- paste0(nimble_code, aggregate_space,  "  ","tav_", random_name,  aggregate_single, " ~ ", nimble_priors$delay.iid, "\n")
-        }else{
-          if ((tolower(delay_link)=="log"|(tolower(delay_link)=="logit"))){
-            nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:(D+1)) { \n")
-          }else{
-            nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:D) { \n")
-          }
-          nimble_code <- paste0(nimble_code, aggregate_space, "  ",  "for(i in 1:N) { \n")
-          nimble_code <- paste0(nimble_code, aggregate_space,  "  ", "  ","v_", random_name, "[i, d", aggregate_index, "] ~ dnorm(0, tav_", random_name, "[d", aggregate_index, "])\n")
-          nimble_code <- paste0(nimble_code, aggregate_space, "  ", "}\n")
-          nimble_code <- paste0(nimble_code, aggregate_space,  "  ","tav_", random_name, "[d", aggregate_index, "] ~ ", nimble_priors$delay.iid, "\n")
-          nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-        }
-
+    if (length(random_effects_nested) > 0) {
+      for (random_name in names(random_effects_nested)) {
+        nimble_code <- paste0(nimble_code, aggregate_space, "for(i in 1:N){\n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "  ", "w_", random_name, "[i",aggregate_index,"] ~ dnorm(0, taw_", random_name, aggregate_single, ")\n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "taw_", random_name, aggregate_single, " ~ ", nimble_priors$nested.iid, "\n")
       }
     }
 
-    if (length(structured_terms_delay) > 0) {
-      for (term_name in names(structured_terms_delay)) {
-        if(stringr::str_detect(tolower(delay_link), "survivor")){
-          if (structured_terms_delay[[term_name]] == "rw1") {
-            nimble_code <- paste0(nimble_code, aggregate_space, "v_rw1_", term_name, "[1", aggregate_index,"] ~ dnorm(0",", ", "tav_rw1_", term_name, aggregate_single,")\n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "for(j_", term_name, " in 2:N){\n")
-            nimble_code <- paste0(nimble_code, aggregate_space,"  ", "v_rw1_", term_name, "[j_", term_name, aggregate_index,"] ~ dnorm(v_rw1_", term_name,"[j_", term_name, "-1", aggregate_index, "]",", ", "tav_rw1_", term_name, aggregate_single, ")\n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "tav_rw1_", term_name, aggregate_single, " ~ ", nimble_priors$delay.rw1, "\n")
-
-            # } else if (structured_terms_delay[[term_name]] == "rw2") {
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "v_rw2_", term_name, "[1", aggregate_index,"] ~ dnorm(0, tav_rw2_", term_name, aggregate_single, ")\n")
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "v_rw2_", term_name, "[2", aggregate_index,"] ~ dnorm(v_rw2_", term_name, "[1", aggregate_index,"], ", "tav_rw2_", term_name, aggregate_single, ")\n")
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "for(j_", term_name, " in 3:N){\n")
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "v_rw2_", term_name, "[j_", term_name, aggregate_index,"] ~ dnorm(2*v_rw2_", term_name,"[j_", term_name, "-1", aggregate_index,"] - v_rw2_", term_name, "[j_", term_name, "-2", aggregate_index,"]", ", ", "tav_rw2_", term_name, aggregate_single, ")\n")
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "tav_rw2_", term_name, aggregate_single, " ~ ", nimble_priors$delay.rw2, "\n")
-            #
-            # } else if (structured_terms_delay[[term_name]] == "seasonal") {
-            #   nimble_code <- paste0(nimble_code, "  v_seasonal_", term_name, "[1:N] ~ dPeriodic(tav_seasonal_", term_name, ")\n")
-            #   nimble_code <- paste0(nimble_code, "  tav_seasonal_", term_name, " ~ T(dnorm(0,1),0,)\n")
-
-
-            # }else if (structured_terms_delay[[term_name]] == "spatial") { #EDIT for spatial effect
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "v_spatial[1:N", aggregate_index,"] ~ dcar_normal(adj[], num[], tav_spatial",aggregate_single,")\n")
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "tav_spatial",aggregate_single,," ~ T(dnorm(0,1),0,)\n")
-            #
-          }
-
-
-        }else{
-          if (structured_terms_delay[[term_name]] == "rw1") {
-            if ((tolower(delay_link)=="log"|(tolower(delay_link)=="logit"))){
-              nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:(D+1)) { \n")
-            }else{
-              nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:D) { \n")
-            }
-            nimble_code <- paste0(nimble_code, aggregate_space, "  ","v_rw1_", term_name, "[1, d", aggregate_index,"] ~ dnorm(0",", ", "tav_rw1_", term_name, "[d", aggregate_index, "])\n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "  ","for(j_", term_name, " in 2:N){\n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "  ","  ", "v_rw1_", term_name, "[j_", term_name, ", d", aggregate_index,"] ~ dnorm(v_rw1_", term_name,"[j_", term_name, "-1, d", aggregate_index, "]",", ", "tav_rw1_", term_name, "[d", aggregate_index, "])\n")
-            nimble_code <- paste0(nimble_code, aggregate_space,"  ", "}\n")
-            nimble_code <- paste0(nimble_code, aggregate_space,"  ", "tav_rw1_", term_name, "[d", aggregate_index, "] ~ ", nimble_priors$delay.rw1, "\n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-
-            # } else if (structured_terms_delay[[term_name]] == "rw2") {
-            #   if ((tolower(delay_link)=="log"|(tolower(delay_link)=="logit"))){
-            #     nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:(D+1)) { \n")
-            #   }else{
-            #     nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:D) { \n")
-            #   }
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "v_rw2_", term_name, "[1, d", aggregate_index,"] ~ dnorm(0, tav_rw2_", term_name,"[d", aggregate_index, "])\n")
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "v_rw2_", term_name, "[2, d", aggregate_index,"] ~ dnorm(v_rw2_", term_name, "[1, d", aggregate_index,"], ", "tav_rw2_", term_name,"[d", aggregate_index, "])\n")
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "for(j_", term_name, " in 3:N){\n")
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "  ", "v_rw2_", term_name, "[j_", term_name,", d", aggregate_index,"] ~ dnorm(2*v_rw2_", term_name,"[j_", term_name, "-1, d", aggregate_index,"] - v_rw2_", term_name, "[j_", term_name, "-2, d", aggregate_index,"]", ", ", "tav_rw2_", term_name,"[d", aggregate_index, "])\n")
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "}\n")
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "tav_rw2_", term_name,"[d", aggregate_index, "] ~ ", nimble_priors$delay.rw2, "\n")
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-            #
-            #   # } else if (structured_terms_delay[[term_name]] == "seasonal") {
-            #   #   nimble_code <- paste0(nimble_code, "  v_seasonal_", term_name, "[1:N] ~ dPeriodic(tav_seasonal_", term_name, ")\n")
-            #   #   nimble_code <- paste0(nimble_code, "  tav_seasonal_", term_name, " ~ T(dnorm(0,1),0,)\n")
-            #
-            # } else if (structured_terms_delay[[term_name]] == "spatial") { #EDIT for spatial effect
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:D) { \n")
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "v_spatial[1:N, d", aggregate_index,"] ~ dcar_normal(adj[], num[], tav_spatial[d", aggregate_index, "])\n")
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "  ", "tav_spatial[d", aggregate_index, "] ~ T(dnorm(0,1),0,)\n")
-            #   nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-            #
-          }
+    if (length(structured_terms_nested) > 0) {
+      for (term_name in names(structured_terms_nested)) {
+        if (structured_terms_nested[[term_name]] == "rw1") {
+          nimble_code <- paste0(nimble_code, aggregate_space, "w_rw1_", term_name, "[1", aggregate_index, "] ~ dnorm(0",", ", "taw_rw1_", term_name, ")\n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "for(j_", term_name, " in 2:N){\n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "  ", "w_rw1_", term_name, "[j_", term_name, aggregate_index, "] ~ dnorm(w_rw1_", term_name,"[j_", term_name, "-1]",", ", "taw_rw1_", term_name, ")\n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "taw_rw1_", term_name, aggregate_single, " ~ ", nimble_priors$nested.rw1, "\n")
+        } else if (structured_terms_nested[[term_name]] == "rw2") {
+          nimble_code <- paste0(nimble_code, aggregate_space, "w_rw2_", term_name, "[1", aggregate_index,"] ~ dnorm(0, taw_rw2_", term_name, aggregate_single, ")\n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "w_rw2_", term_name, "[2", aggregate_index,"] ~ dnorm(w_rw2_", term_name, "[1",aggregate_index,"], ", "taw_rw2_", term_name, aggregate_single, ")\n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "for(j_", term_name, " in 3:N){\n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "    ", "w_rw2_", term_name, "[j_", term_name, aggregate_index , "] ~ dnorm(2*w_rw2_", term_name,"[j_", term_name, "-1", aggregate_index,"] - w_rw2_", term_name, "[j_", term_name, "-2", aggregate_index,"]", ", ", "taw_rw2_", term_name, aggregate_single, ")\n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
+          nimble_code <- paste0(nimble_code, aggregate_space, "taw_rw2_", term_name, aggregate_single, " ~ ", nimble_priors$nested.rw2, "\n")
+          # } else if (structured_terms_nested[[term_name]] == "seasonal") {
+          #   nimble_code <- paste0(nimble_code, "  w_seasonal_", term_name, "[1:N] ~ dPeriodic(taw_seasonal_", term_name, ")\n")
+          #   nimble_code <- paste0(nimble_code, "  taw_seasonal_", term_name, " ~ T(dnorm(0,1),0,)\n")
         }
-
+        # else if (structured_terms_nested[[term_name]] == "spatial") {
+        #   nimble_code <- paste0(nimble_code, aggregate_space, "w_spatial[1:N", aggregate_index,"] ~ dcar_normal(adj[], num[], taw_spatial",aggregate_single,")\n")
+        #   nimble_code <- paste0(nimble_code, aggregate_space, "taw_spatial",aggregate_single," ~ T(dnorm(0,1),0,)\n")
+        # }
       }
     }
+    # Initial values for delta and omega
+    for(c in 1:nchains){
+      if(aggregate){
+        nimble_initial_values[[c]][["delta"]]<- stats::rnorm(nimble_constants$A,0,1)
+        nimble_initial_values[[c]][["omega"]]<- stats::runif(nimble_constants$A,0,0.1)
 
-    if((tolower(family$delay)=="nb")|(tolower(family$delay)=="gdm")|(tolower(family$delay)=="dirichlet-multinomial")){
-      # Add priors for family-specific parameters
-      if((tolower(family$delay)=="gdm")){
-        nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:D) {\n")
       }else{
-        nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:(D+1)) {\n")
-      }
-      nimble_code <- paste0(nimble_code, aggregate_space, "  ", "phi[d", aggregate_index,"] ~ ", nimble_priors$delay.dispersion, "\n")
-      nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-    }
-
-
-    ### Priors for nested model
-
-    if(nested){
-
-      # EDIT need to add link choices for multiple viruses - modelling relative proportion!
-      # Add prior distributions for the coefficients
-      nimble_code <- paste0(nimble_code, aggregate_space, "# Priors nested\n")
-      nimble_code <- paste0(nimble_code, aggregate_space, "  gamma_0", aggregate_single , "~ ", nimble_priors$nested.intercept, "\n")
-      for(c in 1:nchains){
-        if(aggregate){
-          nimble_initial_values[[c]][["gamma_0"]]<- stats::rnorm(nimble_constants$A,0,0.1)
-        }else{
-          nimble_initial_values[[c]][["gamma_0"]]<- stats::rnorm(1,0,0.1)
-        }
-      }
-      nimble_monitors[["gamma_0"]] <- "gamma_0"
-
-
-
-      # Add priors for regular predictors
-      for (pred in predictors_nested) {
-        if (!stringr::str_detect(pred, "s\\(") && pred != "1" && !stringr::str_detect(pred, "f\\(")) {
-          nimble_code <- paste0(nimble_code, aggregate_space, "gamma_", pred, aggregate_single, " ~ ", nimble_priors$nested.re, "\n")
-          # for(c in 1:nchains){
-          #   if(aggregate){
-          #     nimble_initial_values[[c]][[paste0("gamma_", pred)]]<- stats::rnorm(nimble_constants$A,0,0.1)
-          #   }else{
-          #     nimble_initial_values[[c]][[paste0("gamma_", pred)]]<- stats::rnorm(1,0,0.1)
-          #   }
-          # }
-          # nimble_monitors[[paste0("gamma_", pred)]] <- paste0("gamma_", pred)
-
-        }
-      }
-
-      # Add priors for spline coefficients
-      if (!is.null(spline_terms_nested)) {
-        nimble_code <- paste0(nimble_code, aggregate_space, "# Priors for totals spline \n")
-        for(j in 1:length(spline_terms_nested)){
-          # nimble_constants[[paste("S_gamma_",pred_name,i,sep='')]]<-jagam_output$jags.data$S1[,(1+(i-1)*dim(jagam_output$jags.data$S1)[1]):(i*dim(jagam_output$jags.data$S1)[1])]
-          nimble_code <- paste0(nimble_code, aggregate_space, "gamma_spline_",spline_terms_nested[j],"[1:N", aggregate_index, "] <- ","f_spline_",spline_terms_nested[j], "[1:N, 1:K_gamma_",pred_name,"]%*%kappa_gamma_", pred_name, "[1:K_gamma_",pred_name, aggregate_index, "] \n")
-          nimble_code <- paste0(nimble_code, aggregate_space, "kappa_gamma_",spline_terms_nested[j],"[", "1:K_gamma_",spline_terms_nested[j], aggregate_index, "] ~ dmnorm(zeros[", "1:K_gamma_",spline_terms_nested[j],"],","omega_gamma_",spline_terms_nested[j],"[", "1:K_gamma_",spline_terms_nested[j], ", 1:K_gamma_",spline_terms_nested[j], aggregate_index, "])\n",sep='')
-          nimble_constants$zeros<-rep(0,max(c(length(nimble_constants$zeros), nimble_constants[[paste("K_gamma_",spline_terms_nested[j],sep='')]])))
-          # Penalty matrix for MVN distribution.
-          nimble_code <- paste0(nimble_code, aggregate_space, "omega_gamma_",spline_terms_nested[j],"[", "1:K_gamma_",spline_terms_nested[j], ", 1:K_gamma_",spline_terms_nested[j], aggregate_index, "] <-",sep='')
-          S_n<-(dim(jagam_output_nested[[j]]$jags.data$S1)[2]/dim(jagam_output_nested[[j]]$jags.data$S1)[1])
-          for(i in 1:S_n){
-            nimble_code <- paste0(nimble_code,"S_gamma_",spline_terms_nested[j],"[", "1:K_gamma_",spline_terms_nested[j], ", (1 + ",(i-1),"*K_gamma_",spline_terms_nested[j],"):(",i,"*K_gamma_",spline_terms_nested[j], ")]/sigma_gamma_",spline_terms_nested[j],i,aggregate_single,"^2 + ",sep='')
-            if(i==S_n){
-              nimble_code <- substr(nimble_code, 1, nchar(nimble_code) - 3)
-              nimble_code <- paste0(nimble_code," \n",sep='')
-            }
-          }
-          for(i in 1:S_n){
-            nimble_code <- paste0(nimble_code, aggregate_space, "sigma_gamma_", spline_terms_nested[j],i,aggregate_single," ~ ", nimble_priors$nested.spline, " \n")
-            for(c in 1:nchains){
-              if(aggregate){
-                nimble_initial_values[[c]][[paste("sigma_gamma_", spline_terms_nested[j],i,sep='')]]<- stats::runif(nimble_constants$A, 0, 1)
-              }else{
-                nimble_initial_values[[c]][[paste("sigma_gamma_", spline_terms_nested[j],i,sep='')]]<- stats::runif(1, 0, 1)
-              }
-              nimble_monitors[[paste("sigma_gamma_", spline_terms_nested[j],i,sep='')]] <- paste("sigma_gamma_", spline_terms_nested[j],i,sep='')
-            }
-          }
-        }
-      }
-
-      # Add priors for random effects and structured terms
-      if (length(random_effects_nested) > 0) {
-        for (random_name in names(random_effects_nested)) {
-          nimble_code <- paste0(nimble_code, aggregate_space, "for(i in 1:N){\n")
-          nimble_code <- paste0(nimble_code, aggregate_space, "  ", "w_", random_name, "[i",aggregate_index,"] ~ dnorm(0, taw_", random_name, aggregate_single, ")\n")
-          nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-          nimble_code <- paste0(nimble_code, aggregate_space, "taw_", random_name, aggregate_single, " ~ ", nimble_priors$nested.iid, "\n")
-        }
-      }
-
-      if (length(structured_terms_nested) > 0) {
-        for (term_name in names(structured_terms_nested)) {
-          if (structured_terms_nested[[term_name]] == "rw1") {
-            nimble_code <- paste0(nimble_code, aggregate_space, "w_rw1_", term_name, "[1", aggregate_index, "] ~ dnorm(0",", ", "taw_rw1_", term_name, ")\n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "for(j_", term_name, " in 2:N){\n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "  ", "w_rw1_", term_name, "[j_", term_name, aggregate_index, "] ~ dnorm(w_rw1_", term_name,"[j_", term_name, "-1]",", ", "taw_rw1_", term_name, ")\n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "taw_rw1_", term_name, aggregate_single, " ~ ", nimble_priors$nested.rw1, "\n")
-          } else if (structured_terms_nested[[term_name]] == "rw2") {
-            nimble_code <- paste0(nimble_code, aggregate_space, "w_rw2_", term_name, "[1", aggregate_index,"] ~ dnorm(0, taw_rw2_", term_name, aggregate_single, ")\n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "w_rw2_", term_name, "[2", aggregate_index,"] ~ dnorm(w_rw2_", term_name, "[1",aggregate_index,"], ", "taw_rw2_", term_name, aggregate_single, ")\n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "for(j_", term_name, " in 3:N){\n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "    ", "w_rw2_", term_name, "[j_", term_name, aggregate_index , "] ~ dnorm(2*w_rw2_", term_name,"[j_", term_name, "-1", aggregate_index,"] - w_rw2_", term_name, "[j_", term_name, "-2", aggregate_index,"]", ", ", "taw_rw2_", term_name, aggregate_single, ")\n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
-            nimble_code <- paste0(nimble_code, aggregate_space, "taw_rw2_", term_name, aggregate_single, " ~ ", nimble_priors$nested.rw2, "\n")
-            # } else if (structured_terms_nested[[term_name]] == "seasonal") {
-            #   nimble_code <- paste0(nimble_code, "  w_seasonal_", term_name, "[1:N] ~ dPeriodic(taw_seasonal_", term_name, ")\n")
-            #   nimble_code <- paste0(nimble_code, "  taw_seasonal_", term_name, " ~ T(dnorm(0,1),0,)\n")
-          }
-          # else if (structured_terms_nested[[term_name]] == "spatial") {
-          #   nimble_code <- paste0(nimble_code, aggregate_space, "w_spatial[1:N", aggregate_index,"] ~ dcar_normal(adj[], num[], taw_spatial",aggregate_single,")\n")
-          #   nimble_code <- paste0(nimble_code, aggregate_space, "taw_spatial",aggregate_single," ~ T(dnorm(0,1),0,)\n")
-          # }
-        }
-      }
-      # Initial values for delta and omega
-      for(c in 1:nchains){
-        if(aggregate){
-          nimble_initial_values[[c]][["delta"]]<- stats::rnorm(nimble_constants$A,0,1)
-          nimble_initial_values[[c]][["omega"]]<- stats::runif(nimble_constants$A,0,0.1)
-
-        }else{
-          nimble_initial_values[[c]][["delta"]]<- stats::rnorm(1,0,1)
-          nimble_initial_values[[c]][["omega"]]<- stats::runif(1,0,0.1)
-        }
+        nimble_initial_values[[c]][["delta"]]<- stats::rnorm(1,0,1)
+        nimble_initial_values[[c]][["omega"]]<- stats::runif(1,0,0.1)
       }
     }
+
 
     # Prior for scale of shared parameter
     nimble_code <- paste0(nimble_code, aggregate_space, "delta", aggregate_single, " ~ ", nimble_priors$nested.scale, "\n")
@@ -1832,6 +1810,7 @@ formula_to_nimble <- function(formula, data, model=NULL, family=list(), delay_li
     nimble_code <- paste0(nimble_code, aggregate_space, "chi", aggregate_single, " ~ ", nimble_priors$censored.dispersion, "\n")
 
   }
+
 
 
   # End of nimble code:
@@ -2065,3 +2044,4 @@ formula_to_nimble <- function(formula, data, model=NULL, family=list(), delay_li
   return(list(nimble_code = nimble_code, nimble_initial_values = nimble_initial_values, #nimble_dimensions = nimble_dimensions,
               nimble_constants = nimble_constants, nimble_data=nimble_data, nimble_monitors=nimble_monitors))
 }
+

@@ -1,5 +1,5 @@
 # Define the nimble_to_output function
-#' Title
+#' Run Nowcasting Model Using Nimble Package.
 #'
 #' @param seed Set seed for MCMC.
 #' @param formula A list with formula's for model of the response variables 'delay', if you wish to fit a 'delay' model. Additionally a formula for the 'totals' response if you wish to fit a joint model.
@@ -22,6 +22,7 @@
 #'
 #' @return list of nimble output and objects.
 #' @export
+#' @import nimble
 #'
 #' @examples
 #' Runs nimble code for specified nowcasting model.
@@ -31,10 +32,12 @@ nimble_to_output <- function(seed=1, formula, data, model=NULL, family=list(),
                              niter, nburnin, thin, nchains, parallel=FALSE,
                              formula_to_nimble) {
   # Load libraries.
-  library(nimble)
-  library(tidyverse)
-  library(mgcv)
-  library(abind)
+  # library(nimble)
+  #requireNamespace("nimble", quietly = TRUE) #error
+  loadNamespace("nimble")
+  # library(tidyverse) # error
+  # library(mgcv)
+ # require(nimble, quietly = TRUE)
 
 
   # Load required functions
@@ -51,18 +54,18 @@ nimble_to_output <- function(seed=1, formula, data, model=NULL, family=list(),
       }
     })
 
-    rbetabin=nimble::nimbleFunction(run=function(n=integer(0),mu=double(0),phi=double(0),size=double(0)){
+    rbetabin=nimbleFunction(run=function(n=integer(0),mu=double(0),phi=double(0),size=double(0)){
       phi <- min(phi,1e+04) # Hard upper limit on phi for computational stability.
-      pi=stats::rbeta(1,mu*phi,(1-mu)*phi)
+      pi=rbeta(1,mu*phi,(1-mu)*phi)
       returnType(double(0))
-      return(stats::rbinom(1,size,pi))
+      return(rbinom(1,size,pi))
     })
 
     assign('dbetabin', dbetabin, envir = .GlobalEnv)
     assign('rbetabin', rbetabin, envir = .GlobalEnv)
 
     # Register the Beta-Binomial as a distribution.
-    nimble::registerDistributions(list(dbetabin=list(
+    registerDistributions(list(dbetabin=list(
       BUGSdist='dbetabin(mu,phi,size)',discrete=TRUE)))
 
   }

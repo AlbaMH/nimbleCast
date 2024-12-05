@@ -11,3 +11,16 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 URL: https://github.com/AlbaMH/nimbleCast
 BugReports: https://github.com/AlbaMH/nimbleCast/issues
+Imports: 
+    dplyr,
+    nimble,
+    stats, 
+    parallel,
+    coda,
+    tibble,
+    reshape2,
+    stringr,
+    mgcv,
+    tidyr,
+    magrittr
+    

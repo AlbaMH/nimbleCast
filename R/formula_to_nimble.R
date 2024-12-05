@@ -1,5 +1,5 @@
 # Define the function formula_to_nimble
-#' Title
+#' Define Nowcasting Model for Nimble.
 #'
 #' @param formula A list with formula's for model of the response variables 'delay', if you wish to fit a 'delay' model. Additionally a formula for the 'totals' response if you wish to fit a joint model.
 #' @param data A list with data for the delay response variable, and the totals response variable (for a 'joint' model), and any covariates.
@@ -18,7 +18,7 @@
 #' @export
 #'
 #' @examples
-#' Takes a formula and gives nimble objects.
+#' Takes model formula and gives nimble objects.
 formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, family=list(), delay_link=list(),
                                                   D=NULL, model_window=NULL, aggregate=FALSE, nested=FALSE, nested.censored=NULL,
                                                   priors=list(), nchains=1) {
@@ -152,7 +152,7 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
   }
 
   # Start building the NIMBLE code
-  nimble_code <- "nimbleCode({\n"
+  nimble_code <- "nimble::nimbleCode({\n"
 
   # If aggregate=TRUE add additional for loop to model for 2nd dimension of response data
   # Check dimensions are as required for aggregate=TRUE.

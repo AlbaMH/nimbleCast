@@ -2,7 +2,7 @@
 % Please edit documentation in R/formula_to_nimble.R
 \name{formula_to_nimble}
 \alias{formula_to_nimble}
-\title{Title}
+\title{Define Nowcasting Model for Nimble.}
 \usage{
 formula_to_nimble(
   formula,
@@ -48,8 +48,8 @@ formula_to_nimble(
 A list of nimble objects.
 }
 \description{
-Title
+Define Nowcasting Model for Nimble.
 }
 \examples{
-Takes a formula and gives nimble objects.
+Takes model formula and gives nimble objects.
 }

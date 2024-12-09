@@ -295,7 +295,9 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
       # Determine the type of random effect or structured model
       if (stringr::str_detect(pred, "model = \"iid\"")) {
         # Random intercept
-        linear_predictor <- paste0(linear_predictor, "u_", pred_name, "[i", aggregate_index, "] + ")
+        nimble_constants[[paste0(pred_name,"_factor")]]<-as.numeric(as.factor(data[[pred_name]]))
+        nimble_constants[[paste0(pred_name,"_length")]]<-length(unique(nimble_constants[[paste0(pred_name,"_factor")]]))
+        linear_predictor <- paste0(linear_predictor, "u_", pred_name, "[",pred_name,"_factor[i]", aggregate_index, "] + ")
         random_effects[[pred_name]] <- "iid"
         for(c in 1:nchains){
           if(aggregate){
@@ -828,7 +830,9 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
         # Determine the type of random effect or structured model
         if (stringr::str_detect(pred_p, "model = \"iid\"")) {
           # Random intercept
-          linear_predictor_delay <- paste0(linear_predictor_delay, "v_", pred_name, "[i", aggregate_index, "] + ")
+          nimble_constants[[paste0(pred_name,"_factor")]]<-as.numeric(as.factor(data[[pred_name]]))
+          nimble_constants[[paste0(pred_name,"_length")]]<-length(unique(nimble_constants[[paste0(pred_name,"_factor")]]))
+          linear_predictor_delay <- paste0(linear_predictor_delay, "v_", pred_name, "[",pred_name,"_factor[i]", aggregate_index, "] + ")
           random_effects_delay[[pred_name]] <- "iid"
 
           for(c in 1:nchains){
@@ -867,7 +871,9 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
       }else{
         if (stringr::str_detect(pred_p, "model = \"iid\"")) {
           # Random intercept
-          linear_predictor_delay <- paste0(linear_predictor_delay, "v_", pred_name, "[i, d", aggregate_index, "] + ")
+          nimble_constants[[paste0(pred_name,"_factor")]]<-as.numeric(as.factor(data[[pred_name]]))
+          nimble_constants[[paste0(pred_name,"_length")]]<-length(unique(nimble_constants[[paste0(pred_name,"_factor")]]))
+          linear_predictor_delay <- paste0(linear_predictor_delay, "v_", pred_name, "[",pred_name,"_factor[i], d", aggregate_index, "] + ")
           random_effects_delay[[pred_name]] <- "iid"
 
           for(c in 1:nchains){
@@ -958,6 +964,7 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
       # }
       # nimble_monitors[[paste0("alpha_int")]] <- "alpha_int"
     } else {
+      # Add covariate to data
       nimble_data[[pred_p]]<-data[[pred_p]]
       if(is.null(data[[pred_p]])){
         stop(paste0("Please include covariate ", pred, " in data argument."))
@@ -1132,7 +1139,9 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
         # Determine the type of random effect or structured model
         if (stringr::str_detect(pred_p, "model = \"iid\"")) {
           # Random intercept
-          linear_predictor_nested <- paste0(linear_predictor_nested, "w_", pred_name, "[i", aggregate_index, "] + ")
+          nimble_constants[[paste0(pred_name,"_factor")]]<-as.numeric(as.factor(data[[pred_name]]))
+          nimble_constants[[paste0(pred_name,"_length")]]<-length(unique(nimble_constants[[paste0(pred_name,"_factor")]]))
+          linear_predictor_nested <- paste0(linear_predictor_nested, "w_", pred_name, "[",pred_name,"_factor[i]", aggregate_index, "] + ")
           random_effects_nested[[pred_name]] <- "iid"
           for(c in 1:nchains){
             if(aggregate){
@@ -1359,7 +1368,7 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
   # Add priors for random effects and structured terms
   if (length(random_effects) > 0) {
     for (random_name in names(random_effects)) {
-      nimble_code <- paste0(nimble_code, aggregate_space, "for(i in 1:N){\n")
+      nimble_code <- paste0(nimble_code, aggregate_space, "for(i in 1:",random_name,"_length){\n")
       nimble_code <- paste0(nimble_code, aggregate_space, "  ", "u_", random_name, "[i",aggregate_index,"] ~ dnorm(0, tau_", random_name, aggregate_single, ")\n")
       nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
       nimble_code <- paste0(nimble_code, aggregate_space, "tau_", random_name, aggregate_single, " ~  ",nimble_priors$totals.iid, "\n")
@@ -1578,7 +1587,7 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
   if (length(random_effects_delay) > 0) {
     for (random_name in names(random_effects_delay)) {
       if(stringr::str_detect(tolower(delay_link), "survivor")){
-        nimble_code <- paste0(nimble_code, aggregate_space, "for(i in 1:N) { \n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "for(i in 1:",random_name,"_length) { \n")
         nimble_code <- paste0(nimble_code, aggregate_space,  "  ","v_", random_name, "[i", aggregate_index, "] ~ dnorm(0, tav_", random_name, aggregate_single ,")\n")
         nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
         nimble_code <- paste0(nimble_code, aggregate_space,  "  ","tav_", random_name,  aggregate_single, " ~ ", nimble_priors$delay.iid, "\n")
@@ -1588,7 +1597,7 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
         }else{
           nimble_code <- paste0(nimble_code, aggregate_space, "for(d in 1:D) { \n")
         }
-        nimble_code <- paste0(nimble_code, aggregate_space, "  ",  "for(i in 1:N) { \n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "  ",  "for(i in 1:",random_name,"_length) { \n")
         nimble_code <- paste0(nimble_code, aggregate_space,  "  ", "  ","v_", random_name, "[i, d", aggregate_index, "] ~ dnorm(0, tav_", random_name, "[d", aggregate_index, "])\n")
         nimble_code <- paste0(nimble_code, aggregate_space, "  ", "}\n")
         nimble_code <- paste0(nimble_code, aggregate_space,  "  ","tav_", random_name, "[d", aggregate_index, "] ~ ", nimble_priors$delay.iid, "\n")
@@ -1754,7 +1763,7 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
     # Add priors for random effects and structured terms
     if (length(random_effects_nested) > 0) {
       for (random_name in names(random_effects_nested)) {
-        nimble_code <- paste0(nimble_code, aggregate_space, "for(i in 1:N){\n")
+        nimble_code <- paste0(nimble_code, aggregate_space, "for(i in 1:",random_name,"_length){\n")
         nimble_code <- paste0(nimble_code, aggregate_space, "  ", "w_", random_name, "[i",aggregate_index,"] ~ dnorm(0, taw_", random_name, aggregate_single, ")\n")
         nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
         nimble_code <- paste0(nimble_code, aggregate_space, "taw_", random_name, aggregate_single, " ~ ", nimble_priors$nested.iid, "\n")

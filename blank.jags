@@ -3,8 +3,8 @@ model {
   for (i in 1:n) { y[i] ~ dnorm(mu[i],tau) } ## response 
   scale <- 1/tau ## convert tau to standard GLM scale
   tau ~ dgamma(.05,.005) ## precision parameter prior 
-  ## Parametric effect priors CHECK tau=1/2.1^2 is appropriate!
-  for (i in 1:1) { b[i] ~ dnorm(0,0.22) }
+  ## Parametric effect priors CHECK tau=1/1.3^2 is appropriate!
+  for (i in 1:1) { b[i] ~ dnorm(0,0.63) }
   ## prior for s(t)... 
   K1 <- S1[1:19,1:19] * lambda[1]  + S1[1:19,20:38] * lambda[2]
   b[2:20] ~ dmnorm(zero[2:20],K1) 

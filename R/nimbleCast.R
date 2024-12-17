@@ -2,7 +2,7 @@
 #' Define and Run Nowcasting Model Using Nimble
 #'
 #' @param formula A list with formula's for model of the response variables 'delay', if you wish to fit a 'delay' model. Additionally a formula for the 'totals' response if you wish to fit a joint model.
-#' @param data A list with data for the delay response variable, and the totals response variable (for a 'joint' model), and any covariates.
+#' @param data A list with data for the delay response variable, and the totals response variable (for a 'joint' model), and any covariates. Dimensions must be in the following order (if present); time, delay, aggregate.
 #' @param model Argument set to 'delay' if only modelling the delay respnse variable, or 'joint' if you wish to jointly model the delay and totals.
 #' @param family Set distributions for model of the delay and the totals.
 #' @param delay_link Set the link function for the delay proportions.
@@ -23,8 +23,11 @@
 #'
 #' @return List of nimble output (and objects if return.nimble_objects=TRUE) and median posterior predictions of totals response variables (and delay response variable return.delay=TRUE).
 #' @export
+#' @import nimble
 #' @importFrom magrittr %>%
 #' @importFrom stats quantile
+#' @importFrom nimble getNimbleOption
+#'
 #' @examples
 #' Runs nowcasting model in NIMBLE and in parallel if specified.
 nimbleCast <- function(formula, data, model=NULL, family=list(), delay_link=NULL,
@@ -251,7 +254,7 @@ nimbleCast <- function(formula, data, model=NULL, family=list(), delay_link=NULL
                 response_partial_casts[,which(!is.na(data[[response_partial]][,d,a])),d,a]<-rep(data[[response_partial]][which(!is.na(data[[response_partial]][,d,a])),d,a],each=n_sim)
                 nu_phi[,,d,a]<-nu[,,d,a]*phi[,d,a]
                 p_beta <- stats::rbeta(n_sim*sum(is.na(data[[response_partial]][,d,a])),nu_phi[,which(is.na(data[[response_partial]][,d,a])),d,a], (phi[,d,a] - nu_phi[,which(is.na(data[[response_partial]][,d,a])),d,a]))
-                response_partial_casts[,which(is.na(data[[response_partial]][,d,a])),d,a] <- stats::rbinom(n_sim*sum(is.na(data[[response_partial]][,d,a])), p_beta, response_casts[,which(is.na(data[[response_partial]][,d,a])),d,a])
+                response_partial_casts[,which(is.na(data[[response_partial]][,d,a])),d,a] <- stats::rbinom(n=n_sim*sum(is.na(data[[response_partial]][,d,a])), prob=p_beta, size=response_casts[,which(is.na(data[[response_partial]][,d,a])),d,a])
               }
             }
 
@@ -330,7 +333,7 @@ nimbleCast <- function(formula, data, model=NULL, family=list(), delay_link=NULL
               response_partial_casts[,which(!is.na(data[[response_partial]][,d])),d]<-rep(data[[response_partial]][which(!is.na(data[[response_partial]][,d])),d],each=n_sim)
               nu_phi[,,d]<-nu[,,d]*phi[,d]
               p_beta <- stats::rbeta(n_sim*sum(is.na(data[[response_partial]][,d])),nu_phi[,which(is.na(data[[response_partial]][,d])),d], (phi[,d] - nu_phi[,which(is.na(data[[response_partial]][,d])),d]))
-              response_partial_casts[,which(is.na(data[[response_partial]][,d])),d] <- stats::rbinom(n_sim*sum(is.na(data[[response_partial]][,d])), p_beta, response_casts[,which(is.na(data[[response_partial]][,d])),d])
+              response_partial_casts[,which(is.na(data[[response_partial]][,d])),d] <- stats::rbinom(n=n_sim*sum(is.na(data[[response_partial]][,d])), prob=p_beta, size=response_casts[,which(is.na(data[[response_partial]][,d])),d])
             }
 
           }else if(tolower(family$delay)=="poisson"){
@@ -501,7 +504,7 @@ nimbleCast <- function(formula, data, model=NULL, family=list(), delay_link=NULL
             # Forecasted nested counts
             eta_chi[,,a]<-eta[,,a]*chi[,a]
             eta_beta <- stats::rbeta(n_sim*(nimble_constants$N-nimble_constants$W),eta_chi[,(nimble_constants$W+1):nimble_constants$N,a], (chi[,a] - eta_chi[,(nimble_constants$W+1):nimble_constants$N,a]))
-            response_nested_casts[ ,(nimble_constants$W+1):nimble_constants$N,a] <- stats::rbinom(n_sim*(nimble_constants$N-nimble_constants$W), eta_beta, response_casts[,(nimble_constants$W+1):nimble_constants$N,a])
+            response_nested_casts[ ,(nimble_constants$W+1):nimble_constants$N,a] <- stats::rbinom(n=n_sim*(nimble_constants$N-nimble_constants$W), prob=eta_beta, size=response_casts[,(nimble_constants$W+1):nimble_constants$N,a])
           }
         }
 
@@ -524,7 +527,7 @@ nimbleCast <- function(formula, data, model=NULL, family=list(), delay_link=NULL
           #Forecasted nested counts
           eta_chi<-eta*chi
           eta_beta <- stats::rbeta(n_sim*(nimble_constants$N-nimble_constants$W),eta_chi[,(nimble_constants$W+1):nimble_constants$N], (chi - eta_chi[,(nimble_constants$W+1):nimble_constants$N]))
-          response_nested_casts[ ,(nimble_constants$W+1):nimble_constants$N] <- stats::rbinom(n_sim*(nimble_constants$N-nimble_constants$W), eta_beta, response_casts[,(nimble_constants$W+1):nimble_constants$N])
+          response_nested_casts[ ,(nimble_constants$W+1):nimble_constants$N] <- stats::rbinom(n=n_sim*(nimble_constants$N-nimble_constants$W), prob=eta_beta, size=response_casts[,(nimble_constants$W+1):nimble_constants$N])
         }
         response_nested_quantiles <- response_nested_casts%>%
           apply(c(2),stats::quantile,c(0.025,0.5,0.975))%>%reshape2::melt(varnames=c('quantile','t'),value.name = response)%>%
@@ -645,7 +648,7 @@ nimbleCast <- function(formula, data, model=NULL, family=list(), delay_link=NULL
                 response_partial_casts[,which(!is.na(data[[response_partial]][,d,a])),d,a]<-rep(data[[response_partial]][which(!is.na(data[[response_partial]][,d,a])),d,a],each=n_sim)
                 nu_phi[[a]][,,d]<-nu[[a]][,,d]*phi[[a]][,d]
                 p_beta <- stats::rbeta(n_sim*sum(is.na(data[[response_partial]][,d,a])),nu_phi[[a]][,which(is.na(data[[response_partial]][,d,a])),d], (phi[[a]][,d] - nu_phi[[a]][,which(is.na(data[[response_partial]][,d,a])),d]))
-                response_partial_casts[,which(is.na(data[[response_partial]][,d])),d,a] <- stats::rbinom(n_sim*sum(is.na(data[[response_partial]][,d,a])), p_beta, response_casts[,which(is.na(data[[response_partial]][,d,a])),d,a])
+                response_partial_casts[,which(is.na(data[[response_partial]][,d])),d,a] <- stats::rbinom(n=n_sim*sum(is.na(data[[response_partial]][,d,a])), prob=p_beta, size=response_casts[,which(is.na(data[[response_partial]][,d,a])),d,a])
               }
             }
 
@@ -796,7 +799,7 @@ nimbleCast <- function(formula, data, model=NULL, family=list(), delay_link=NULL
             eta_chi[[a]] <- array(NA, dim=c(n_sim,nimble_constants$N))
             eta_chi[[a]]<-eta[[a]]*chi[[a]]
             eta_beta <- stats::rbeta(n_sim*(nimble_constants$N-nimble_constants$W),eta_chi[[a]][,(nimble_constants$W+1):nimble_constants$N], (chi[[a]] - eta_chi[[a]][,(nimble_constants$W+1):nimble_constants$N]))
-            response_nested_casts[ ,(nimble_constants$W+1):nimble_constants$N, a] <- stats::rbinom(n_sim*(nimble_constants$N-nimble_constants$W), eta_beta, response_casts[,(nimble_constants$W+1):nimble_constants$N])
+            response_nested_casts[ ,(nimble_constants$W+1):nimble_constants$N, a] <- stats::rbinom(n=n_sim*(nimble_constants$N-nimble_constants$W), prob=eta_beta, size=response_casts[,(nimble_constants$W+1):nimble_constants$N])
           }
         }
         # Calculate response quantiles:
@@ -942,7 +945,7 @@ nimbleCast <- function(formula, data, model=NULL, family=list(), delay_link=NULL
                 response_partial_casts[,which(!is.na(data[[response_partial]][,d,a])),d,a]<-rep(data[[response_partial]][which(!is.na(data[[response_partial]][,d,a])),d,a],each=n_sim)
                 nu_phi[,,d,a]<-nu[,,d,a]*phi[,d,a]
                 p_beta <- stats::rbeta(n_sim*sum(is.na(data[[response_partial]][,d,a])),nu_phi[,which(is.na(data[[response_partial]][,d,a])),d,a], (phi[,d,a] - nu_phi[,which(is.na(data[[response_partial]][,d,a])),d,a]))
-                response_partial_casts[,which(is.na(data[[response_partial]][,d,a])),d,a] <- stats::rbinom(n_sim*sum(is.na(data[[response_partial]][,d,a])), p_beta, response_casts[,which(is.na(data[[response_partial]][,d,a])),d,a])
+                response_partial_casts[,which(is.na(data[[response_partial]][,d,a])),d,a] <- stats::rbinom(n=n_sim*sum(is.na(data[[response_partial]][,d,a])), prob=p_beta, size=response_casts[,which(is.na(data[[response_partial]][,d,a])),d,a])
               }
             }
 
@@ -1021,7 +1024,7 @@ nimbleCast <- function(formula, data, model=NULL, family=list(), delay_link=NULL
               response_partial_casts[,which(!is.na(data[[response_partial]][,d])),d]<-rep(data[[response_partial]][which(!is.na(data[[response_partial]][,d])),d],each=n_sim)
               nu_phi[,,d]<-nu[,,d]*phi[,d]
               p_beta <- stats::rbeta(n_sim*sum(is.na(data[[response_partial]][,d])),nu_phi[,which(is.na(data[[response_partial]][,d])),d], (phi[,d] - nu_phi[,which(is.na(data[[response_partial]][,d])),d]))
-              response_partial_casts[,which(is.na(data[[response_partial]][,d])),d] <- stats::rbinom(n_sim*sum(is.na(data[[response_partial]][,d])), p_beta, response_casts[,which(is.na(data[[response_partial]][,d])),d])
+              response_partial_casts[,which(is.na(data[[response_partial]][,d])),d] <- stats::rbinom(n=n_sim*sum(is.na(data[[response_partial]][,d])), prob=p_beta, size=response_casts[,which(is.na(data[[response_partial]][,d])),d])
             }
 
           }else if(tolower(family$delay)=="poisson"){
@@ -1191,7 +1194,7 @@ nimbleCast <- function(formula, data, model=NULL, family=list(), delay_link=NULL
             # Forecasted nested counts
             eta_chi[,,a]<-eta[,,a]*chi[,a]
             eta_beta <- stats::rbeta(n_sim*(nimble_constants$N-nimble_constants$W),eta_chi[,(nimble_constants$W+1):nimble_constants$N,a], (chi[,a] - eta_chi[,(nimble_constants$W+1):nimble_constants$N,a]))
-            response_nested_casts[ ,(nimble_constants$W+1):nimble_constants$N,a] <- stats::rbinom(n_sim*(nimble_constants$N-nimble_constants$W), eta_beta, response_casts[,(nimble_constants$W+1):nimble_constants$N,a])
+            response_nested_casts[ ,(nimble_constants$W+1):nimble_constants$N,a] <- stats::rbinom(n=n_sim*(nimble_constants$N-nimble_constants$W), prob=eta_beta, size=response_casts[,(nimble_constants$W+1):nimble_constants$N,a])
           }
         }
 
@@ -1214,7 +1217,7 @@ nimbleCast <- function(formula, data, model=NULL, family=list(), delay_link=NULL
           #Forecast nested counts
           eta_chi<-eta*chi
           eta_beta <- stats::rbeta(n_sim*(nimble_constants$N-nimble_constants$W),eta_chi[,(nimble_constants$W+1):nimble_constants$N], (chi - eta_chi[,(nimble_constants$W+1):nimble_constants$N]))
-          response_nested_casts[ ,(nimble_constants$W+1):nimble_constants$N] <- stats::rbinom(n_sim*(nimble_constants$N-nimble_constants$W), eta_beta, response_casts[,(nimble_constants$W+1):nimble_constants$N])
+          response_nested_casts[ ,(nimble_constants$W+1):nimble_constants$N] <- stats::rbinom(n=n_sim*(nimble_constants$N-nimble_constants$W), prob=eta_beta, size=response_casts[,(nimble_constants$W+1):nimble_constants$N])
         }
         response_nested_quantiles <- response_nested_casts%>%
           apply(c(2),stats::quantile,c(0.025,0.5,0.975))%>%reshape2::melt(varnames=c('quantile','t'),value.name = response)%>%

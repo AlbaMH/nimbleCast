@@ -23,6 +23,8 @@
 #' @return list of nimble output and objects.
 #' @export
 #' @import nimble
+#' @importFrom nimble getNimbleOption returnType
+#' @importFrom stats rbeta rbinom
 #'
 #' @examples
 #' Runs nimble code for specified nowcasting model.

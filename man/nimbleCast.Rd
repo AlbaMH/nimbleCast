@@ -29,7 +29,7 @@ nimbleCast(
 \arguments{
 \item{formula}{A list with formula's for model of the response variables 'delay', if you wish to fit a 'delay' model. Additionally a formula for the 'totals' response if you wish to fit a joint model.}
 
-\item{data}{A list with data for the delay response variable, and the totals response variable (for a 'joint' model), and any covariates.}
+\item{data}{A list with data for the delay response variable, and the totals response variable (for a 'joint' model), and any covariates. Dimensions must be in the following order (if present); time, delay, aggregate.}
 
 \item{model}{Argument set to 'delay' if only modelling the delay respnse variable, or 'joint' if you wish to jointly model the delay and totals.}
 

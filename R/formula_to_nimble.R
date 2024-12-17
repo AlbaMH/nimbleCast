@@ -89,7 +89,7 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
 
   # Determine if there is a forecast period in the data
   if(aggregate){
-    forecast <- length(which(is.na(data[[response_partial]][,1,])))
+    forecast <- length(which(is.na(data[[response_partial]][,1,1])))
   }else{
     forecast <- length(which(is.na(data[[response_partial]][,1])))
   }
@@ -1851,42 +1851,54 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
 
   if(is.null(model_window)){
     if(!conditional){
-      nimble_data[[response]]<-data[[response]]
+      if(aggregate){
+        nimble_data[[response]]<-data[[response]][1:nimble_constants$W,]
+
+      }else{
+        nimble_data[[response]]<-data[[response]][1:nimble_constants$W]
+
+      }
     }
 
     if(aggregate){
-      nimble_data[[response_partial]]<-data[[response_partial]][,1:D_index,]
+      nimble_data[[response_partial]]<-data[[response_partial]][1:nimble_constants$W,1:D_index,]
 
     }else{
-      nimble_data[[response_partial]]<-data[[response_partial]][,1:D_index]
+      nimble_data[[response_partial]]<-data[[response_partial]][1:nimble_constants$W,1:D_index]
 
     }
   }else{
     if(aggregate){
       if(!conditional){
-        nimble_data[[response]]<-data[[response]][(1+dim(data[[response]])[1]-nimble_constants$W):dim(data[[response]])[1],]
+        nimble_data[[response]]<-data[[response]][(1+dim(data[[response]])[1]-nimble_constants$W-forecast):(dim(data[[response]])[1]-forecast),]
       }
-      nimble_data[[response_partial]]<-data[[response_partial]][(1+dim(data[[response]])[1]-nimble_constants$W):dim(data[[response]])[1],1:D_index,]
+      nimble_data[[response_partial]]<-data[[response_partial]][(1+dim(data[[response]])[1]-nimble_constants$W-forecast):(dim(data[[response]])[1]-forecast),1:D_index,]
 
 
     }else{
       if(!conditional){
-        nimble_data[[response]]<-data[[response]][(1+length(data[[response]])-nimble_constants$W):length(data[[response]])]
+        nimble_data[[response]]<-data[[response]][(1+length(data[[response]])-nimble_constants$W-forecast):(length(data[[response]])-forecast)]
       }
-      nimble_data[[response_partial]]<-data[[response_partial]][(1+length(data[[response]])-nimble_constants$W):length(data[[response]]),1:D_index]
+      nimble_data[[response_partial]]<-data[[response_partial]][(1+length(data[[response]])-nimble_constants$W-forecast):(length(data[[response]])-forecast),1:D_index]
     }
   }
 
 
 
   if(nested){
-    nimble_data[[response_nested]]<-data[[response_nested]]
-    observed_nested<-data[[response_nested]]
     if(aggregate){
-      observed_nested[(nimble_constants$C+1):(nimble_constants$N),]<-NA
+      nimble_data[[response_nested]]<-data[[response_nested]][1:nimble_constants$W,]
 
     }else{
-      observed_nested[(nimble_constants$C+1):(nimble_constants$N)]<-NA
+      nimble_data[[response_nested]]<-data[[response_nested]][1:nimble_constants$W]
+
+    }
+    observed_nested<-nimble_data[[response_nested]]
+    if(aggregate){
+      observed_nested[(nimble_constants$C+1):(nimble_constants$W),]<-NA
+
+    }else{
+      observed_nested[(nimble_constants$C+1):(nimble_constants$W)]<-NA
 
     }
     nimble_data[[paste0(response_nested,"_corrected")]]<-observed_nested
@@ -1906,7 +1918,7 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
             nimble_initial_values[[c]][[response]] <- array(NA, dim=dim(nimble_data[[response]]))
           }
           for(a in 1:nimble_constants$A){
-            for(t in 1:nimble_constants$N){
+            for(t in 1:nimble_constants$W){
               for(d in 1:(nimble_constants$D+1)){
                 # Initial values for unobserved response_delay (delay).
                 if(is.na(nimble_data[[response_partial]][t,d,a])){
@@ -1993,13 +2005,13 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
               ceiling(mean(c(nimble_data[[response_nested]][i,a],sum(nimble_data[[response]][i,a],nimble_initial_values[[c]][[response]][i,a],na.rm=T))))
           }
         }
-        if(nimble_constants$N>nimble_constants$W){
-          for(a in 1:nimble_constants$A){
-            for(i in (nimble_constants$W+1):nimble_constants$N){
-              nimble_initial_values[[c]][[paste0(response_nested,"_corrected")]][i,a] <- stats::runif(1, min=0, max=nimble_initial_values[[c]][[response]][i,a])
-            }
-          }
-        }
+        # if(nimble_constants$N>nimble_constants$W){
+        #   for(a in 1:nimble_constants$A){
+        #     for(i in (nimble_constants$W+1):nimble_constants$N){
+        #       nimble_initial_values[[c]][[paste0(response_nested,"_corrected")]][i,a] <- stats::runif(1, min=0, max=nimble_initial_values[[c]][[response]][i,a])
+        #     }
+        #   }
+        # }
       }else{
         nimble_initial_values[[c]][[paste0(response_nested,"_corrected")]] <- rep(NA, length(nimble_data[[paste0(response_nested,"_corrected")]]))
 
@@ -2008,12 +2020,12 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
             ceiling(mean(c(nimble_data[[response_nested]][i],sum(nimble_data[[response]][i],nimble_initial_values[[c]][[response]][i],na.rm=T))))
         }
 
-        if(nimble_constants$N>nimble_constants$W){
-          for(i in (nimble_constants$W+1):nimble_constants$N){
-            nimble_initial_values[[c]][[paste0(response_nested,"_corrected")]][i] <- stats::runif(1, min=0, max=nimble_initial_values[[c]][[response]][i])
-          }
-
-        }
+        # if(nimble_constants$N>nimble_constants$W){
+        #   for(i in (nimble_constants$W+1):nimble_constants$N){
+        #     nimble_initial_values[[c]][[paste0(response_nested,"_corrected")]][i] <- stats::runif(1, min=0, max=nimble_initial_values[[c]][[response]][i])
+        #   }
+        #
+        # }
       }
     }
   }

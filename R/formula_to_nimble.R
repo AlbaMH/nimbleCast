@@ -40,6 +40,8 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
   predictors_partial <- stringr::str_split(predictors_partial[2], "\\+")[[1]]
   predictors_partial <- stringr::str_trim(predictors_partial)
 
+
+
   ############ Model for totals:
 
   # Create lists for nimble
@@ -103,6 +105,25 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
     nimble_constants$N <- (model_window + forecast) # Add constant N - maximum time steps with forecast
   }
 
+  if(nested){
+    # Parse the formula$nested components
+    response_nested <- as.character(formula$nested[[2]])  # Dependent variable(s)
+    predictors_nested <- as.character(formula$nested[-2])  # Independent variables
+
+    # Clean up predictors (removes "+" and spaces)
+    predictors_nested <- stringr::str_split(predictors_nested[2], "\\+")[[1]]
+    predictors_nested <- stringr::str_trim(predictors_nested)
+
+    # Model for censored nested variable
+    if(is.null(nested.censored)){
+      print(paste0("Argument nested.censored has not been set so nested variable is assumed to be fully observed."))
+      nested.censored <- 0
+    }
+    # Constant for period up to which nested variable is not censored.
+    nimble_constants$C <- nimble_constants$N -  nested.censored
+
+  }
+
   # Delay index:
   if(is.null(D)){
     if(!(tolower(family$delay)=="gdm")){
@@ -150,6 +171,8 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
       }
     }
   }
+
+
 
   # Start building the NIMBLE code
   nimble_code <- "nimble::nimbleCode({\n"
@@ -214,6 +237,59 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
     stop("Argument family$total is not recognised.")
   }
 
+  # Data for NIMBLE
+  nimble_data<-list()
+  # If totals response variable is not in the data calculate from partial response variable data:
+  if(!conditional){
+    if(is.null(data[[response]])){
+      if(aggregate){
+        data[[response]]<-apply(data[[response_partial]],c(1,3),sum)
+
+      }else{
+        data[[response]]<-apply(data[[response_partial]],1,sum)
+      }
+    }
+
+  }
+
+
+  # Account for any moving windows/forecast
+  if(aggregate){
+    if(!conditional){
+      nimble_data[[response]]<-data[[response]][(1+dim(data[[response]])[1]-nimble_constants$W-forecast):(dim(data[[response]])[1]-forecast),]
+    }
+    nimble_data[[response_partial]]<-data[[response_partial]][(1+dim(data[[response]])[1]-nimble_constants$W-forecast):(dim(data[[response]])[1]-forecast),1:D_index,]
+
+
+  }else{
+    if(!conditional){
+      nimble_data[[response]]<-data[[response]][(1+length(data[[response]])-nimble_constants$W-forecast):(length(data[[response]])-forecast)]
+    }
+    nimble_data[[response_partial]]<-data[[response_partial]][(1+length(data[[response]])-nimble_constants$W-forecast):(length(data[[response]])-forecast),1:D_index]
+  }
+
+
+
+  # Nested data if nested model
+  if(nested){
+    if(aggregate){
+      nimble_data[[response_nested]]<-data[[response_nested]][1:nimble_constants$W,]
+
+    }else{
+      nimble_data[[response_nested]]<-data[[response_nested]][1:nimble_constants$W]
+
+    }
+    observed_nested<-nimble_data[[response_nested]]
+    if(aggregate){
+      observed_nested[(nimble_constants$C+1):(nimble_constants$W),]<-NA
+
+    }else{
+      observed_nested[(nimble_constants$C+1):(nimble_constants$W)]<-NA
+
+    }
+    nimble_data[[paste0(response_nested,"_corrected")]]<-observed_nested
+  }
+
 
 
   # Initialize the linear predictor for the totals
@@ -227,8 +303,7 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
   structured_terms <- list()  # for structured additive models
   jagam_output_totals  <- list()  # to store spline mgcv::jagam output
 
-  # Data for nimble
-  nimble_data<-list()
+
 
   jagam_output <- NULL
   for (pred in predictors) {
@@ -240,12 +315,33 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
       pred_name <- stringr::str_extract(pred, "(?<=\\().*(?=\\,)")  # extract variable inside s()
 
       # Use mgcv::jagam to get the spline basis for the variable
-      data_spline<-data
+      data_spline<-nimble_data
       data_spline[response]<-NULL
+      data_spline[response_partial]<-NULL
+      if(nested){
+        data_spline[response_nested]<-NULL
+        data_spline[paste0(response_nested,"_corrected")]<-NULL
+
+      }
       data_spline[[response]]<-stats::rnorm(nimble_constants$N,0,1)
 
+      if(aggregate){
+        data_spline[[pred_name]]<-data[[pred_name]][(1+dim(data[[pred_name]])[1]-nimble_constants$N):(dim(data[[pred_name]])[1]),]
 
-      jagam_output <- mgcv::jagam(stats::as.formula(paste(response,"~",pred)), data = data_spline, file='blank.jags')
+      }else{
+        data_spline[[pred_name]]<-data[[pred_name]][(1+dim(data[[pred_name]])[1]-nimble_constants$N):(dim(data[[pred_name]])[1])]
+
+      }
+
+      # knots from up to N
+      jagam_output_N <- mgcv::jagam(stats::as.formula(paste(response,"~",pred)),
+                                  data = data_spline, file='blank.jags')
+      # knots up to W
+      knots<-list()
+      knots[[response]]<-seq(from=1, to=nimble_constants$W, length=dim(jagam_output_N$jags.data$X)[2])
+      jagam_output <- mgcv::jagam(stats::as.formula(paste(response,"~",pred)),
+                                  knots = knots,
+                                  data = data_spline, file='blank.jags')
 
       # Add the spline term in the linear predictor
       spline_term_name <- paste0("f_spline_", pred_name)
@@ -732,11 +828,40 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
       # Handle spline term with mgcv::jagam
       pred_name <- stringr::str_extract(pred_p, "(?<=\\().*(?=\\,)")  # extract variable inside s()
 
-      # Use mgcv::jagam to get the spline basis for the variable
-      data_spline_delay<-data
+       # Use mgcv::jagam to get the spline basis for the variable
+      data_spline_delay<-nimble_data
+      data_spline_delay[response]<-NULL
       data_spline_delay[response_partial]<-NULL
+      if(nested){
+        data_spline_delay[response_nested]<-NULL
+        data_spline_delay[paste0(response_nested,"_corrected")]<-NULL
+
+      }
       data_spline_delay[[response_partial]]<-stats::rnorm(nimble_constants$N,0,1)
-      jagam_output <- mgcv::jagam(stats::as.formula(paste(response_partial,"~",pred_p)), data = data_spline_delay, file='blank.jags')
+
+      if(aggregate){
+        data_spline_delay[[pred_name]]<-data[[pred_name]][(1+dim(data[[pred_name]])[1]-nimble_constants$N):(dim(data[[pred_name]])[1]),]
+
+      }else{
+        data_spline_delay[[pred_name]]<-data[[pred_name]][(1+dim(data[[pred_name]])[1]-nimble_constants$N):(dim(data[[pred_name]])[1])]
+
+      }
+
+      # knots from up to N
+      jagam_output_N <-  mgcv::jagam(stats::as.formula(paste(response_partial,"~",pred_p)),
+                                     data = data_spline_delay, file='blank.jags')
+      # knots up to W
+      knots<-list()
+      knots[[response_partial]]<-seq(from=1, to=nimble_constants$W, length=dim(jagam_output_N$jags.data$X)[2])
+      jagam_output <- mgcv::jagam(stats::as.formula(paste(response_partial,"~",pred_p)),
+                                  knots = knots,
+                                  data = data_spline_delay, file='blank.jags')
+
+      # data_spline_delay<-data
+      # data_spline_delay[response_partial]<-NULL
+      # data_spline_delay[[response_partial]]<-stats::rnorm(nimble_constants$N,0,1)
+      # jagam_output <- mgcv::jagam(stats::as.formula(paste(response_partial,"~",pred_p)),
+      #                             data = data_spline_delay, file='blank.jags')
 
       # Add the spline term in the linear pred_pictor
       spline_term_name <- paste0("g_spline_", pred_name)
@@ -1008,14 +1133,6 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
 
   if(nested){
 
-    # Parse the formula$nested components
-    response_nested <- as.character(formula$nested[[2]])  # Dependent variable(s)
-    predictors_nested <- as.character(formula$nested[-2])  # Independent variables
-
-    # Clean up predictors (removes "+" and spaces)
-    predictors_nested <- stringr::str_split(predictors_nested[2], "\\+")[[1]]
-    predictors_nested <- stringr::str_trim(predictors_nested)
-
     # Add the likelihood model
     nimble_monitors[[paste0(response_nested, "_corrected")]] <- paste0(response_nested, "_corrected")
     nimble_monitors[[paste0("chi")]] <- paste0("chi")
@@ -1085,10 +1202,30 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
         pred_name <- stringr::str_extract(pred_p, "(?<=\\().*(?=\\,)")  # extract variable inside s()
 
         # Use mgcv::jagam to get the spline basis for the variable
-        data_spline_nested<-data
+        data_spline_nested<-nimble_data
+        data_spline_nested[response]<-NULL
+        data_spline_nested[response_partial]<-NULL
         data_spline_nested[response_nested]<-NULL
+        data_spline_nested[paste0(response_nested,"_corrected")]<-NULL
         data_spline_nested[[response_nested]]<-stats::rnorm(nimble_constants$N,0,1)
-        jagam_output <- mgcv::jagam(stats::as.formula(paste(response_nested,"~",pred_p)), data = data_spline_nested, file='blank.jags')
+
+        if(aggregate){
+          data_spline_nested[[pred_name]]<-data[[pred_name]][(1+dim(data[[pred_name]])[1]-nimble_constants$N):(dim(data[[pred_name]])[1]),]
+
+        }else{
+          data_spline_nested[[pred_name]]<-data[[pred_name]][(1+dim(data[[pred_name]])[1]-nimble_constants$N):(dim(data[[pred_name]])[1])]
+
+        }
+
+        # knots from up to N
+        jagam_output_N <-  mgcv::jagam(stats::as.formula(paste(response_nested,"~",pred_p)),
+                                       data = data_spline_nested, file='blank.jags')
+        # knots up to W
+        knots<-list()
+        knots[[response_nested]]<-seq(from=1, to=nimble_constants$W, length=dim(jagam_output_N$jags.data$X)[2])
+        jagam_output <- mgcv::jagam(stats::as.formula(paste(response_nested,"~",pred_p)),
+                                    knots = knots,
+                                    data = data_spline_nested, file='blank.jags')
 
         # Add the spline term in the linear pred_pictor
         spline_term_name <- paste0("g_spline_", pred_name)
@@ -1223,14 +1360,6 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
       nimble_code <- paste0(nimble_code, linear_predictor_nested, "\n")
       nimble_code <- paste0(nimble_code, aggregate_space, "}\n")
 
-      # Model for censored nested variable
-
-      if(is.null(nested.censored)){
-        print(paste0("Argument nested.censored has not been set so nested variable is assumed to be fully observed."))
-        nested.censored <- 0
-      }
-      # Constant for period up to which nested variable is not censored.
-      nimble_constants$C <- nimble_constants$N -  nested.censored
 
       # Add the likelihood model
       for(c in 1:nchains){
@@ -1835,74 +1964,7 @@ formula_to_nimble <-formula_to_nimble <- function(formula, data, model=NULL, fam
   ############## Lists for nimble:
 
 
-  # If totals response variable is not in the data calculate from partial response variable data:
-  if(!conditional){
-    if(is.null(data[[response]])){
-      if(aggregate){
-        data[[response]]<-apply(data[[response_partial]],c(1,3),sum)
 
-      }else{
-        data[[response]]<-apply(data[[response_partial]],1,sum)
-      }
-    }
-
-  }
-
-
-  if(is.null(model_window)){
-    if(!conditional){
-      if(aggregate){
-        nimble_data[[response]]<-data[[response]][1:nimble_constants$W,]
-
-      }else{
-        nimble_data[[response]]<-data[[response]][1:nimble_constants$W]
-
-      }
-    }
-
-    if(aggregate){
-      nimble_data[[response_partial]]<-data[[response_partial]][1:nimble_constants$W,1:D_index,]
-
-    }else{
-      nimble_data[[response_partial]]<-data[[response_partial]][1:nimble_constants$W,1:D_index]
-
-    }
-  }else{
-    if(aggregate){
-      if(!conditional){
-        nimble_data[[response]]<-data[[response]][(1+dim(data[[response]])[1]-nimble_constants$W-forecast):(dim(data[[response]])[1]-forecast),]
-      }
-      nimble_data[[response_partial]]<-data[[response_partial]][(1+dim(data[[response]])[1]-nimble_constants$W-forecast):(dim(data[[response]])[1]-forecast),1:D_index,]
-
-
-    }else{
-      if(!conditional){
-        nimble_data[[response]]<-data[[response]][(1+length(data[[response]])-nimble_constants$W-forecast):(length(data[[response]])-forecast)]
-      }
-      nimble_data[[response_partial]]<-data[[response_partial]][(1+length(data[[response]])-nimble_constants$W-forecast):(length(data[[response]])-forecast),1:D_index]
-    }
-  }
-
-
-
-  if(nested){
-    if(aggregate){
-      nimble_data[[response_nested]]<-data[[response_nested]][1:nimble_constants$W,]
-
-    }else{
-      nimble_data[[response_nested]]<-data[[response_nested]][1:nimble_constants$W]
-
-    }
-    observed_nested<-nimble_data[[response_nested]]
-    if(aggregate){
-      observed_nested[(nimble_constants$C+1):(nimble_constants$W),]<-NA
-
-    }else{
-      observed_nested[(nimble_constants$C+1):(nimble_constants$W)]<-NA
-
-    }
-    nimble_data[[paste0(response_nested,"_corrected")]]<-observed_nested
-  }
 
   # Missing data initial values for nimble
   #EDIT initial values for forecasting period? two time loops?

@@ -15,5 +15,238 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
-library(nimbleCast)
+# Load packages:
+library(nimbleCast) # Includes Brazilian SARI data for 2023: INFLUD23
+library(reshape2)
+library(ggplot2)
+
 ```
+
+```{r clean}
+# Maximum number of delay to model, data_to_matrix will return D_max+1 delay dimensions where the last argument is all the counts reported in delays >D_max.
+D_max=10
+
+# If testing is not included/ set to FALSE (default) then data_to_matrix assumes you want to use all available information in data.individual. If you are testing the nowcasting model on historic data then setting testing=TRUE will nowcast up to the most recent date_onset date or setting testing to a date (yyyy-mm-dd) will nowcast up to the given date. 
+testing=as.Date("2023-10-21")
+
+# Number of weeks of forecasting (available data outputs will include forecasts if present in data.individual).
+forecast = 4
+
+# Number of weeks prior to the maximum date in the data you want to preform nowcasting up to (if testing=FALSE).
+trim.data = 0
+
+# Set a 30 week window. Nowcasting model will only be fit to data 30 weeks before nowcast date.
+window = 40
+
+# Column name of a censored nested proportion in the data (which are 1's or 0's). Or set to "default.covid" for Brazilian SARI data sets if you wish to model the nested proportion of SARI hospitalisations that are COVID-19 positive. 
+nested_col = "default.covid"
+
+# Numeric vector of age groups you wish to bin data into e.g. c(20,40,60,80,100) . Can be passed to nimbleCast for the nowcasting model to be stratified by age group. Can be set to "SI-PNI" for default bin sizes or "10 years"/"5 years".
+bins_age<-"SI-PNI"
+
+# Identify column name of onset date in data set data.individual.
+date_onset<-"DT_SIN_PRI"
+
+# Identify column name of reporting date in data set data.individual.
+date_report<-"DT_DIGITA"
+
+# Identify column name of date of birth in data set data.individual.
+age_col<-"DT_NASC"
+
+# Identify column name of spatial region data.individual. Can be passed to nimbleCast for the nowcasting model to be stratified by region.
+region_col="SG_UF_NOT"
+
+# Format that dates in data.individual are given in. Default is "%d/%m/%Y".
+date_format=c("%d/%m/%Y")
+
+# If use.epiweek=TRUE, it uses the CDC epiweek definition where the week starts on Sunday, if FALSE it the week ends at the weekday of the last record date.
+use.epiweek=FALSE
+
+data_matricies<-data_to_matrix(data.individual = INFLUD23,
+                               window = window,
+                               nested_col = nested_col,
+                               bins_age = bins_age,
+                               date_onset = date_onset,
+                               date_report = date_report,
+                               age_col = age_col,
+                               region_col = region_col,
+                               date_format = date_format,
+                               forecast = forecast,
+                               D_max = D_max,
+                               testing = testing,
+                               trim.data = trim.data,
+                               use.epiweek = use.epiweek)
+
+```
+
+```{r data}
+
+# Data in array form from data_to_matrix:
+sari_totals<-data_matricies$data.totals.array
+sari_delay<-data_matricies$data.delay.array
+covid_totals<-data_matricies$data.nested.array
+
+# Dimensions  
+dim(sari_totals) # N, regions, age groups
+dim(covid_totals) # N, regions, age groups
+dim(sari_delay) # N, delay, regions, age groups
+
+# Dates first dimension relate to 
+dates<-data_matricies$date_names
+
+# Labels for regions
+region_names<-data_matricies$region_names
+
+# Labels for age group bins
+age_group_names<-data_matricies$bins_age
+
+# Available data in data set to compare nowcasts/forecasts to (since testing!=FALSE).
+sari_totals_available<-data_matricies$data.totals.array.available
+covid_totals_available<-data_matricies$data.nested.array.available
+
+#Number of weeks of data (including forecasting)
+N<-dim(sari_delay)[1]
+#Number of regions
+S<-dim(sari_delay)[3]
+#Number of age group bins
+A<-dim(sari_delay)[4]
+
+# nimbleCast can only aggregate by one dimesion e.g. Age group OR region.
+# Fit model which aggregates by age group for one Brazilian state: SP
+SP<-which(region_names=="SP")
+
+# Plot available SARI data:
+# Censored data for nowcasting.
+cen_sari_long<-melt(apply(sari_delay,c(1,3,4),sum, na.rm=TRUE), value.name = "sari", varnames = c("t","s","a"))
+cen_covid_long<-melt(covid_totals, value.name = "covid", varnames = c("t","s","a"))
+
+# Available data to compare nowcasting to.
+true_sari_long<-melt(sari_totals_available, value.name = "sari", varnames = c("t","s","a"))
+true_covid_long<-melt(covid_totals_available, value.name = "covid", varnames = c("t","s","a"))
+
+# Plot for SARI.
+sari_plot<-ggplot()+
+  geom_point(data=filter(true_sari_long, s==SP), aes(x=dates[t], y=sari, shape='Eventual'), alpha=0.5)+
+  geom_line(data=filter(cen_sari_long, s==SP), aes(x=dates[t], y=sari, linetype='Reported'), alpha=0.5)+
+  facet_wrap(~paste0("Age group: ", a), scales="free")+theme_minimal()+
+  geom_vline(xintercept = dates[N - forecast], colour='blue',alpha=0.5, linetype="dashed")+
+  labs(x="Date", y="SARI hospitalisations (SP)")+scale_linetype_discrete(name = NULL)+scale_shape_discrete(name = NULL)
+sari_plot
+
+# Plot for COVID-positive SARI.
+covid_plot<-ggplot()+
+  geom_point(data=filter(true_covid_long, s==SP), aes(x=dates[t], y=covid, shape='Eventual'), alpha=0.5)+
+  geom_line(data=filter(cen_covid_long, s==SP), aes(x=dates[t], y=covid, linetype='Reported'), alpha=0.5)+
+  facet_wrap(~paste0("Age group: ", a), scales="free")+theme_minimal()+
+  geom_vline(xintercept = dates[N - forecast], colour='blue',alpha=0.5, linetype="dashed")+
+  labs(x="Date", y="COVID-positive SARI hospitalisations (SP)")+scale_linetype_discrete(name = NULL)+scale_shape_discrete(name = NULL)
+covid_plot
+
+```
+
+```{r nimbleCast}
+# Data for nimbleCast.
+# Totals: must be in array where time is the first dimension and any aggregated variable is the second dimension if aggregate=TRUE. Here called 'y' but can be called anything as long as same name is used to specify formula argument.
+# Delay: must be in array where time is the first dimension and delay is the second dimension and any aggregated variable is the third dimension if aggregate=TRUE. Here called 'z' but can be called anything as long as same name is used to specify formula argument.
+# Nested: must be in array where time is the first dimension and any aggregated variable is the second dimension if aggregate=TRUE. Here called 'x' but can be called anything as long as same name is used to specify formula argument, must be less than or equal to totals (y).
+data <- list(y=sari_totals[,SP,], z=sari_delay[,1:D_max,SP,],x=covid_totals[,SP,],
+             time=matrix(rep(scale(1:N),A),ncol=A))
+
+# IMPORTANT: for forecasting delay must have NA's for time steps that require forecasting - data_to_matrix will generate this when forecast is set to the number of weeks of of forecasting required
+
+
+# Formulas for nimble cast - determine model effects used to model totals, delay and nested components of nowcasting model.
+# totals: model effects for the expected mean of the total counts (if included in the model).
+# delay: model effects for the expected proportion of total counts reported at each delay, type of proportion depends on delay_link argument.
+# nested:  model effects for the expected proportion of total counts that are 'positive' for the nested variable. 
+formula<-list()
+formula$totals <- y ~ s(time, bs="tp")
+formula$delay <- z ~ s(time, bs="cs")
+formula$nested <- x ~ s(time, bs="cs")
+# Note: Formula's can be any smooth function that could be specified using the mgcv function jagam, a covariate effect or an iid factor effect. Intercepts are included by default.
+
+# Model can be set to "delay" if you only wish to model the delayed counts without the totals or "joint" if you want to model the delayed counts and total counts in a joint model. 
+model=NULL # Can be left as NULL if argument family has 'totals' argument included.
+
+# Choice of model distributions for the total counts and delay distribution. 
+family=list(totals='nb',delay="gdm")
+
+# Set link function for proportions reported by delay
+delay_link="survivor"
+
+# Set aggregate to TRUE when data has been stratified and you wish to fit the nowcasting model to each group separately.
+aggregate=TRUE
+
+# Parallel model run over aggregated groups if aggregate=TRUE ('aggregate'), MCMC chains ('chains') or don't run in parallel (FALSE) by default.
+parallel=FALSE
+
+# Set the number of MCMC iterations.
+niter=20000
+
+# Set the amount of MCMC burn in.
+nburnin=10000
+
+# Set amount of MCMC thinning.
+thin=1
+
+# Set number of MCMC chains. 
+nchains=2
+
+# Set window of data up to the most recent date to fit the nowcast model to. 
+model_window=window
+
+# Over-ride default priors 
+priors=list() 
+
+# If nested=TRUE model will include jointly model the nested count given in data using the nested formula. 
+nested=TRUE
+
+# Set number of time steps the nested data is believed to be right censored for, and therefore needs to be nowcasted for.
+nested.censored = 10
+
+# Set return.nimble_objects if you wish nimbleCast to return all the objects that were passed to the nimble functions.
+return.nimble_objects=TRUE
+
+# Set return.delay if you wish nimbleCast to return nowcasts/forecasts for the delayed counts (will increase run time if TRUE).
+return.delay=FALSE
+
+# Run nimbleCast
+
+sari_output_parallel<-nimbleCast(formula=formula, data=data,
+                               model=model, D=D_max, model_window=model_window,
+                               delay_link=delay_link, family=family,
+                               nested=nested, nested.censored = nested.censored,
+                               return.nimble_objects=return.nimble_objects, 
+                               return.delay=return.delay,
+                               aggregate=aggregate, priors=priors,
+                               niter=niter, nburnin=nburnin, 
+                               thin=thin, nchains=nchains)
+
+## Check convergence:
+
+
+```
+
+```{r output}
+
+# names of all nimbleCast output
+names(sari_output_parallel)
+# Time nimbleCast model took to run
+sari_output_parallel$time
+# Number of samples from MCMC
+n_sim <- dim(sari_output_parallel$y$y_samples)[1]
+
+# Plot of model estimates for SARI
+sari_plot_output <- sari_plot+
+  geom_line(data=as_tibble(sari_output_parallel$y$y_95quantiles), aes(x=dates[t],y=`50%`, linetype = "Predicted", colour = "Predicted"), alpha=0.5)+
+  geom_ribbon(data=as_tibble(sari_output_parallel$y$y_95quantiles), aes(x=dates[t],ymin=`2.5%`, ymax=`97.5%`, fill = "Predicted"), alpha=0.5)+scale_color_discrete(name=NULL)+scale_fill_discrete(name=NULL)
+sari_plot_output
+
+# Plot of model estimates for COVID-19
+covid_plot_output <- covid_plot+
+  geom_line(data=as_tibble(sari_output_parallel$x_corrected$x_corrected_95quantiles), aes(x=dates[t],y=`50%`), alpha=0.5)+
+  geom_ribbon(data=as_tibble(sari_output_parallel$x_corrected$x_corrected_95quantiles), aes(x=dates[t],ymin=`2.5%`, ymax=`97.5%`), alpha=0.5)
+covid_plot_output
+
+```
+

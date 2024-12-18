@@ -24,8 +24,12 @@ Imports:
     stringr,
     mgcv,
     tidyr,
-    magrittr
+    magrittr, 
+    ggplot2
 Suggests: 
     knitr,
     rmarkdown
 VignetteBuilder: knitr
+Depends: 
+    R (>= 2.10)
+LazyData: true

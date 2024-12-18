@@ -9,10 +9,10 @@
 #' @param date_report The column name corresponding to the date of reporting.
 #' @param age_col The column name corresponding to the date of birth.
 #' @param region_col The column name corresponding to the spatial region.
-#' @param date_format The format of the dates in data.individual.
+#' @param date_format The format of the dates in data.individual, default is "%d/%m/%Y".
 #' @param forecast Integer of weeks of forecasting you want to include (to be passed to nimbleCast).
 #' @param use.epiweek If TRUE, it uses the CDC epiweek definition where the week starts on Sunday, if FALSE it the week ends at the weekday of the last record date.
-#' @param trim.data Integer such that nowcasting is preformed up to trim.data weeks prior to the maximum date in the data.
+#' @param trim.data Integer such that nowcasting is performed up to trim.data weeks prior to the maximum date in the data.
 #' @param testing Default is FALSE which implys data is most recent data available and nowcast date is most recent date_report. Set to TRUE if you wish to nowcast up to the most recent date_onset. If set as date in format yyyy-mm-dd that will be the nowcast date. If not FALSE arrays with all available data will also be returned.
 #'
 #' @import dplyr

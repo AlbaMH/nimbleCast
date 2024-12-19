@@ -244,8 +244,9 @@ sari_plot_output
 
 # Plot of model estimates for COVID-19
 covid_plot_output <- covid_plot+
-  geom_line(data=as_tibble(sari_output_parallel$x_corrected$x_corrected_95quantiles), aes(x=dates[t],y=`50%`), alpha=0.5)+
-  geom_ribbon(data=as_tibble(sari_output_parallel$x_corrected$x_corrected_95quantiles), aes(x=dates[t],ymin=`2.5%`, ymax=`97.5%`), alpha=0.5)
+  geom_line(data=as_tibble(sari_output_parallel$x_corrected$x_corrected_95quantiles), aes(x=dates[t],y=`50%`, linetype = "Predicted", colour = "Predicted"), alpha=0.5)+
+  geom_ribbon(data=as_tibble(sari_output_parallel$x_corrected$x_corrected_95quantiles), aes(x=dates[t],ymin=`2.5%`, ymax=`97.5%`, 
+                             fill = "Predicted"), alpha=0.5)+scale_color_discrete(name=NULL)+scale_fill_discrete(name=NULL)
 covid_plot_output
 
 ```
